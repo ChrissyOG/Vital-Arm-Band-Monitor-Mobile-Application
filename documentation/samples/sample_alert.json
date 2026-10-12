@@ -1,0 +1,26 @@
+{
+  "device_id": "VITAL-BAND-AU-001",
+  "timestamp": "2026-10-12T02:32:15Z",
+  "alert_type": "CRITICAL_VITALS",
+  "severity": "HIGH",
+  "triggers": [
+    {
+      "metric": "spo2",
+      "measured_value": 88.0,
+      "threshold_limit": 90.0,
+      "message": "Hypoxemia detected: SpO2 dropped below safe limit (88%)."
+    },
+    {
+      "metric": "heart_rate",
+      "measured_value": 138,
+      "threshold_limit": 120,
+      "message": "Tachycardia detected: Heart rate abnormally elevated (138 BPM)."
+    }
+  ],
+  "current_location": {
+    "latitude": -18.897520,
+    "longitude": 32.609315,
+    "last_fix_time": "2026-10-12T02:32:10Z"
+  },
+  "action_required": "NOTIFY_CAREGIVER_IMMEDIATELY"
+}

@@ -1,0 +1,25 @@
+{
+  "device_id": "VITAL-BAND-AU-001",
+  "timestamp": "2026-10-12T02:30:00Z",
+  "network_mode": "WIFI",
+  "battery": {
+    "percentage": 88,
+    "voltage": 3.94,
+    "is_charging": false
+  },
+  "vitals": {
+    "heart_rate_bpm": 74,
+    "spo2_percent": 98.2,
+    "body_temperature_celsius": 36.8,
+    "sensor_contact_detected": true
+  },
+  "location": {
+    "latitude": -18.897520,
+    "longitude": 32.609315,
+    "altitude_meters": 1120.4,
+    "speed_kmh": 1.2,
+    "satellites": 8,
+    "gps_fix": true
+  },
+  "status": "NORMAL"
+}
