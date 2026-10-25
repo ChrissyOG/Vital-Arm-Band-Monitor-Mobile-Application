@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
+import 'auth_service.dart';
 import 'user_profile.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -48,8 +49,8 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController();
-  final _password = TextEditingController();
+  final _email = TextEditingController(text: 'theophany@vitalband.com');
+  final _password = TextEditingController(text: 'password123');
   UserRole _role = UserRole.caregiver;
   bool _hidePassword = true;
 
@@ -60,16 +61,24 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  void _signIn() {
+  Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
-    widget.onAuthenticated(
-      UserProfile(
-        name: 'Alex Morgan',
+    try {
+      final profile = await AuthService.instance.signIn(
         email: _email.text.trim(),
-        role: _role,
-        monitoredName: 'Miriam Bandure',
-      ),
-    );
+        password: _password.text.trim(),
+        selectedRole: _role,
+      );
+      widget.onAuthenticated(profile);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: coral,
+        ),
+      );
+    }
   }
 
   @override
@@ -81,8 +90,36 @@ class _SignInScreenState extends State<SignInScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(24, 34, 24, 28),
             children: [
-              const BrandMark(),
-              const SizedBox(height: 44),
+              Row(
+                children: [
+                  const BrandMark(),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFFB74D)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_done_rounded, color: Color(0xFFE65100), size: 14),
+                        SizedBox(width: 5),
+                        Text(
+                          'Firebase Auth',
+                          style: TextStyle(
+                            color: Color(0xFFE65100),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
               const Text(
                 'WELCOME BACK',
                 style: TextStyle(
@@ -103,7 +140,35 @@ class _SignInScreenState extends State<SignInScreen> {
                 'Sign in to check your band and the people who matter.',
                 style: TextStyle(color: mutedInk, fontSize: 15),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
+              // Quick demo fill buttons
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.person, size: 14, color: forest),
+                      label: const Text('Theophany Bandure', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        _email.text = 'theophany@vitalband.com';
+                        _password.text = 'password123';
+                        setState(() => _role = UserRole.caregiver);
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      avatar: const Icon(Icons.flash_on, size: 14, color: Color(0xFFE89635)),
+                      label: const Text('Demo Account', style: TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        _email.text = 'demo@vitalband.com';
+                        _password.text = 'password123';
+                        setState(() => _role = UserRole.caregiver);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               Form(
                 key: _formKey,
                 child: Column(
@@ -254,25 +319,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_step == 0) {
       if (_role != null) setState(() => _step = 1);
     } else if (_step == 1) {
       if (_formKey.currentState!.validate()) setState(() => _step = 2);
     } else {
       final role = _role!;
-      widget.onAuthenticated(
-        UserProfile(
+      try {
+        final profile = await AuthService.instance.register(
           name: _name.text.trim(),
           email: _email.text.trim(),
+          password: _password.text.trim(),
           role: role,
-          monitoredName: role.monitorsSomeone
-              ? (_monitoredName.text.trim().isEmpty
-                    ? 'Monitored person'
-                    : _monitoredName.text.trim())
-              : _name.text.trim(),
-        ),
-      );
+          monitoredName: _monitoredName.text.trim(),
+        );
+        widget.onAuthenticated(profile);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: coral,
+          ),
+        );
+      }
     }
   }
 

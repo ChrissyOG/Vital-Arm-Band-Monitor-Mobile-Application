@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'animation_widgets.dart';
 import 'app_theme.dart';
+import 'telemetry_service.dart';
 import 'user_profile.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({required this.profile, super.key});
+  const AppShell({required this.profile, this.onSignOut, super.key});
 
   final UserProfile profile;
+  final VoidCallback? onSignOut;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -14,6 +17,33 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  bool _isCallModalShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    TelemetryService.instance.addListener(_handleTelemetryChange);
+  }
+
+  @override
+  void dispose() {
+    TelemetryService.instance.removeListener(_handleTelemetryChange);
+    super.dispose();
+  }
+
+  void _handleTelemetryChange() {
+    final snapshot = TelemetryService.instance.snapshot;
+    if (snapshot.isEmergencyCallActive && !_isCallModalShown && mounted) {
+      _isCallModalShown = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AutomatedEmergencyCallDialog(),
+      ).then((_) {
+        _isCallModalShown = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +53,13 @@ class _AppShellState extends State<AppShell> {
         : const ['Overview', 'Activity', 'History', 'Alerts'];
     final pages = role.monitorsSomeone
         ? <Widget>[
-            OverviewScreen(profile: widget.profile),
+            OverviewScreen(profile: widget.profile, onSignOut: widget.onSignOut),
             HistoryScreen(name: widget.profile.monitoredName),
             LocationScreen(name: widget.profile.monitoredName),
             AlertsScreen(name: widget.profile.monitoredName),
           ]
         : <Widget>[
-            OverviewScreen(profile: widget.profile),
+            OverviewScreen(profile: widget.profile, onSignOut: widget.onSignOut),
             ActivityScreen(name: widget.profile.name),
             HistoryScreen(name: widget.profile.name),
             AlertsScreen(name: widget.profile.name),
@@ -69,9 +99,10 @@ class _AppShellState extends State<AppShell> {
 }
 
 class OverviewScreen extends StatelessWidget {
-  const OverviewScreen({required this.profile, super.key});
+  const OverviewScreen({required this.profile, this.onSignOut, super.key});
 
   final UserProfile profile;
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -79,68 +110,188 @@ class OverviewScreen extends StatelessWidget {
     final subject = role.monitorsSomeone ? profile.monitoredName : profile.name;
     final isFitness = role == UserRole.fitness;
 
-    return DashboardPage(
-      title: 'Good morning, ${profile.name.split(' ').first}',
-      subtitle: isFitness
-          ? 'Your body, in the moment.'
-          : 'Here is the latest from $subject.',
-      trailing: const NotificationButton(),
-      children: [
-        DeviceStatusBanner(name: subject),
-        if (!isFitness && role.monitorsSomeone) ...[
-          const SizedBox(height: 18),
-          const AlertSummary(),
-        ],
-        const SizedBox(height: 23),
-        SectionHeading(
-          title: isFitness ? 'Your vital signs' : 'Vital signs',
-          trailing: 'Today',
-        ),
-        const SizedBox(height: 11),
-        const Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return ListenableBuilder(
+      listenable: TelemetryService.instance,
+      builder: (context, _) {
+        final snapshot = TelemetryService.instance.snapshot;
+
+        return DashboardPage(
+          title: 'Good morning, ${profile.name.split(' ').first}',
+          subtitle: isFitness
+              ? 'Your body, in the moment.'
+              : 'Here is the latest from $subject.',
+          trailing: NotificationButton(onSignOut: onSignOut, profile: profile),
           children: [
-            Expanded(
-              child: VitalCard(
-                title: 'Heart rate',
-                value: '72',
-                unit: 'bpm',
-                status: 'Within baseline',
-                icon: Icons.favorite_rounded,
-                color: coral,
-                data: [0.43, 0.53, 0.48, 0.71, 0.56, 0.66, 0.52, 0.6],
-              ),
+            VitalSpikeNotificationBanner(snapshot: snapshot),
+            if (snapshot.isActivityCorrelated)
+              const ActivityOptimizationCard(),
+            const LecturerDemoBar(),
+            const SizedBox(height: 14),
+            DeviceStatusBanner(
+              name: subject,
+              isCritical: snapshot.isCritical,
+              battery: snapshot.batteryPercentage,
             ),
-            SizedBox(width: 12),
-            Expanded(
-              child: VitalCard(
-                title: 'Blood oxygen',
-                value: '97',
-                unit: '% SpO₂',
-                status: 'Within baseline',
-                icon: Icons.air_rounded,
-                color: forest,
-                data: [0.65, 0.69, 0.62, 0.71, 0.67, 0.73, 0.68, 0.75],
-              ),
+            if (!isFitness && role.monitorsSomeone) ...[
+              const SizedBox(height: 16),
+              AlertSummary(snapshot: snapshot),
+            ],
+            const SizedBox(height: 20),
+            SectionHeading(
+              title: isFitness ? 'Your vital signs' : 'Vital signs',
+              trailing: 'Live stream',
             ),
+            const SizedBox(height: 11),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: VitalCard(
+                    title: 'Heart rate',
+                    value: '${snapshot.heartRate}',
+                    unit: 'bpm',
+                    status: snapshot.statusText,
+                    statusColor: snapshot.statusColor,
+                    icon: Icons.favorite_rounded,
+                    iconWidget: PulsingHeartIcon(
+                      bpm: snapshot.heartRate,
+                      color: snapshot.isCritical
+                          ? coral
+                          : (snapshot.isExercise
+                              ? const Color(0xFFE89635)
+                              : coral),
+                      size: 18,
+                    ),
+                    color: snapshot.isCritical
+                        ? coral
+                        : (snapshot.isExercise
+                            ? const Color(0xFFE89635)
+                            : coral),
+                    data: snapshot.heartRateHistory,
+                    latestSampleText: 'Live stream · just now',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: VitalCard(
+                    title: 'Blood oxygen',
+                    value: snapshot.spo2.toStringAsFixed(1),
+                    unit: '% SpO₂',
+                    status: snapshot.spo2 < 90
+                        ? 'Hypoxemia warning'
+                        : 'Within baseline',
+                    statusColor: snapshot.spo2 < 90 ? coral : forest,
+                    icon: Icons.air_rounded,
+                    color: snapshot.spo2 < 90 ? coral : forest,
+                    data: snapshot.spo2History,
+                    latestSampleText: 'Live stream · just now',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Hospital Continuous Cardiac Oscilloscope Monitor
+            const SectionHeading(
+              title: 'Cardiac Rhythm (Lead II)',
+              trailing: 'Continuous ECG',
+            ),
+            const SizedBox(height: 8),
+            EcgOscilloscope(
+              bpm: snapshot.heartRate,
+              color: snapshot.isCritical
+                  ? coral
+                  : (snapshot.isExercise
+                      ? const Color(0xFFE89635)
+                      : const Color(0xFF00FF66)),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: SurfacePanel(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.thermostat_rounded,
+                            color: forest, size: 20),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Skin Temp',
+                              style: TextStyle(
+                                  color: mutedInk,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '${snapshot.temperature.toStringAsFixed(1)} °C',
+                              style: const TextStyle(
+                                  color: ink,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SurfacePanel(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.speed_rounded,
+                            color: forest, size: 20),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Gait Speed',
+                              style: TextStyle(
+                                  color: mutedInk,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '${snapshot.speedKmh} km/h',
+                              style: const TextStyle(
+                                  color: ink,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SectionHeading(
+              title: isFitness ? 'Today’s movement' : 'Location & movement',
+              trailing: 'GPS fix active',
+            ),
+            const SizedBox(height: 11),
+            if (isFitness)
+              ActivitySummary(name: subject)
+            else
+              const LocationSummary(),
+            const SizedBox(height: 18),
+            const ConnectivityCard(),
+            const SizedBox(height: 18),
+            const DemoNote(),
+            const SizedBox(height: 20),
           ],
-        ),
-        const SizedBox(height: 23),
-        SectionHeading(
-          title: isFitness ? 'Today’s movement' : 'Location & movement',
-          trailing: 'Details',
-        ),
-        const SizedBox(height: 11),
-        if (isFitness)
-          ActivitySummary(name: subject)
-        else
-          const LocationSummary(),
-        const SizedBox(height: 18),
-        const ConnectivityCard(),
-        const SizedBox(height: 18),
-        const DemoNote(),
-        const SizedBox(height: 20),
-      ],
+        );
+      },
     );
   }
 }
@@ -151,56 +302,40 @@ class HistoryScreen extends StatelessWidget {
   final String name;
 
   @override
-  Widget build(BuildContext context) => DashboardPage(
-    title: 'Health history',
-    subtitle: 'A closer look at $name’s readings.',
-    children: const [
-      TimeRangeSelector(),
-      SizedBox(height: 18),
-      TrendPanel(
-        title: 'Heart rate',
-        value: '72 bpm',
-        caption: 'Resting baseline  ·  60–100 bpm',
-        color: coral,
-        values: [
-          0.5,
-          0.44,
-          0.57,
-          0.51,
-          0.66,
-          0.49,
-          0.58,
-          0.72,
-          0.55,
-          0.62,
-          0.47,
-          0.57,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: TelemetryService.instance,
+    builder: (context, _) {
+      final snapshot = TelemetryService.instance.snapshot;
+      return DashboardPage(
+        title: 'Health history',
+        subtitle: 'A closer look at $name’s readings.',
+        children: [
+          const LecturerDemoBar(),
+          const SizedBox(height: 14),
+          const TimeRangeSelector(),
+          const SizedBox(height: 18),
+          TrendPanel(
+            title: 'Heart rate',
+            value: '${snapshot.heartRate} bpm',
+            caption: 'Resting baseline  ·  60–100 bpm',
+            color: snapshot.isCritical
+                ? coral
+                : (snapshot.isExercise ? const Color(0xFFE89635) : coral),
+            values: snapshot.heartRateHistory,
+          ),
+          const SizedBox(height: 14),
+          TrendPanel(
+            title: 'Blood oxygen',
+            value: '${snapshot.spo2.toStringAsFixed(1)}%',
+            caption: 'Typical range  ·  95–100%',
+            color: snapshot.spo2 < 90 ? coral : forest,
+            values: snapshot.spo2History,
+          ),
+          const SizedBox(height: 14),
+          const DataDisclaimer(),
         ],
-      ),
-      SizedBox(height: 14),
-      TrendPanel(
-        title: 'Blood oxygen',
-        value: '97%',
-        caption: 'Typical range  ·  95–100%',
-        color: forest,
-        values: [
-          0.65,
-          0.68,
-          0.66,
-          0.72,
-          0.7,
-          0.74,
-          0.69,
-          0.73,
-          0.71,
-          0.76,
-          0.72,
-          0.75,
-        ],
-      ),
-      SizedBox(height: 14),
-      DataDisclaimer(),
-    ],
+      );
+    },
   );
 }
 
@@ -312,35 +447,58 @@ class AlertsScreen extends StatelessWidget {
   final String name;
 
   @override
-  Widget build(BuildContext context) => DashboardPage(
-    title: 'Alerts',
-    subtitle: 'Health and location updates for $name.',
-    children: const [
-      AlertSummary(expanded: true),
-      SizedBox(height: 15),
-      SectionHeading(title: 'Recent activity', trailing: 'Today'),
-      SizedBox(height: 8),
-      AlertRow(
-        icon: Icons.check_circle_outline_rounded,
-        title: 'Readings within baseline',
-        detail: 'Heart rate and SpO₂ · 9:42 AM',
-        color: forest,
-      ),
-      AlertRow(
-        icon: Icons.location_on_outlined,
-        title: 'Home safe zone entered',
-        detail: 'Geofence · 9:41 AM',
-        color: forest,
-      ),
-      AlertRow(
-        icon: Icons.battery_5_bar_rounded,
-        title: 'Band battery is good',
-        detail: 'Battery at 84% · 9:30 AM',
-        color: forest,
-      ),
-      SizedBox(height: 14),
-      DataDisclaimer(),
-    ],
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: TelemetryService.instance,
+    builder: (context, _) {
+      final snapshot = TelemetryService.instance.snapshot;
+      return DashboardPage(
+        title: 'Alerts',
+        subtitle: 'Health and location updates for $name.',
+        children: [
+          const LecturerDemoBar(),
+          const SizedBox(height: 14),
+          AlertSummary(expanded: true, snapshot: snapshot),
+          const SizedBox(height: 15),
+          const SectionHeading(title: 'Recent activity', trailing: 'Today'),
+          const SizedBox(height: 8),
+          if (snapshot.isCritical) ...[
+            const AlertRow(
+              icon: Icons.crisis_alert_rounded,
+              title: 'CRITICAL: SpO₂ 88% & 138 BPM',
+              detail: 'SOS trigger · Caregiver alert sent',
+              color: coral,
+            ),
+          ] else if (snapshot.isExercise) ...[
+            const AlertRow(
+              icon: Icons.directions_run_rounded,
+              title: 'Elevated heart rate (Cardio zone)',
+              detail: 'Brisk activity detected · 118 BPM',
+              color: Color(0xFFE89635),
+            ),
+          ],
+          const AlertRow(
+            icon: Icons.check_circle_outline_rounded,
+            title: 'Readings within baseline',
+            detail: 'Heart rate and SpO₂ · 9:42 AM',
+            color: forest,
+          ),
+          const AlertRow(
+            icon: Icons.location_on_outlined,
+            title: 'Home safe zone entered',
+            detail: 'Geofence · 9:41 AM',
+            color: forest,
+          ),
+          AlertRow(
+            icon: Icons.battery_5_bar_rounded,
+            title: 'Band battery is good',
+            detail: 'Battery at ${snapshot.batteryPercentage}% · 9:30 AM',
+            color: forest,
+          ),
+          const SizedBox(height: 14),
+          const DataDisclaimer(),
+        ],
+      );
+    },
   );
 }
 
@@ -404,16 +562,30 @@ class DashboardPage extends StatelessWidget {
 }
 
 class DeviceStatusBanner extends StatelessWidget {
-  const DeviceStatusBanner({required this.name, super.key});
+  const DeviceStatusBanner({
+    required this.name,
+    this.isCritical = false,
+    this.battery = 88,
+    super.key,
+  });
 
   final String name;
+  final bool isCritical;
+  final int battery;
 
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(
-      color: forest,
+      color: isCritical ? const Color(0xFF9E2A2B) : forest,
       borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: (isCritical ? coral : forest).withValues(alpha: 0.25),
+          blurRadius: 10,
+          offset: const Offset(0, 3),
+        ),
+      ],
     ),
     child: Row(
       children: [
@@ -421,10 +593,14 @@ class DeviceStatusBanner extends StatelessWidget {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.13),
+            color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Icon(Icons.watch_rounded, color: lime, size: 25),
+          child: Icon(
+            isCritical ? Icons.emergency_rounded : Icons.watch_rounded,
+            color: isCritical ? Colors.white : lime,
+            size: 25,
+          ),
         ),
         const SizedBox(width: 13),
         Expanded(
@@ -440,14 +616,17 @@ class DeviceStatusBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Vital Band  ·  Connected just now',
-                style: TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
+              Text(
+                'Vital Band AU-001  ·  ESP32 · Batt $battery%',
+                style: const TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
               ),
             ],
           ),
         ),
-        const Icon(Icons.circle, size: 9, color: lime),
+        LiveRadarDot(
+          color: isCritical ? Colors.white : lime,
+          label: isCritical ? 'ALERT' : 'LIVE',
+        ),
       ],
     ),
   );
@@ -462,6 +641,9 @@ class VitalCard extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.data,
+    this.iconWidget,
+    this.statusColor,
+    this.latestSampleText,
     super.key,
   });
 
@@ -472,6 +654,9 @@ class VitalCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final List<double> data;
+  final Widget? iconWidget;
+  final Color? statusColor;
+  final String? latestSampleText;
 
   @override
   Widget build(BuildContext context) => SurfacePanel(
@@ -481,7 +666,7 @@ class VitalCard extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, color: color, size: 16),
+            iconWidget ?? Icon(icon, color: color, size: 16),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -501,39 +686,28 @@ class VitalCard extends StatelessWidget {
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: ink,
-                  fontSize: 35,
-                  height: 1,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  unit,
-                  style: const TextStyle(
-                    color: mutedInk,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+          child: AnimatedCounter(
+            value: double.tryParse(value) ?? 0.0,
+            unit: unit,
+            style: const TextStyle(
+              color: ink,
+              fontSize: 35,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+            unitStyle: const TextStyle(
+              color: mutedInk,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Latest sample · 9:42 AM',
+        Text(
+          latestSampleText ?? 'Latest sample · 9:42 AM',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: mutedInk, fontSize: 9.5),
+          style: const TextStyle(color: mutedInk, fontSize: 9.5),
         ),
         const SizedBox(height: 9),
         SizedBox(
@@ -544,15 +718,21 @@ class VitalCard extends StatelessWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: forest, size: 13),
+            Icon(
+              (statusColor == coral)
+                  ? Icons.warning_amber_rounded
+                  : Icons.check_circle_rounded,
+              color: statusColor ?? forest,
+              size: 13,
+            ),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
                 status,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: forest,
+                style: TextStyle(
+                  color: statusColor ?? forest,
                   fontSize: 9.5,
                   fontWeight: FontWeight.w700,
                 ),
@@ -748,27 +928,7 @@ class DemoMap extends StatelessWidget {
           ),
           Align(
             alignment: const Alignment(0.2, -0.05),
-            child: Container(
-              width: compact ? 29 : 35,
-              height: compact ? 29 : 35,
-              decoration: BoxDecoration(
-                color: forest,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 4),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33526D56),
-                    blurRadius: 9,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.home_rounded,
-                color: Colors.white,
-                size: compact ? 13 : 16,
-              ),
-            ),
+            child: RadarMapPin(compact: compact),
           ),
           Positioned(
             right: 12,
@@ -857,55 +1017,92 @@ class MapPainter extends CustomPainter {
 }
 
 class AlertSummary extends StatelessWidget {
-  const AlertSummary({this.expanded = false, super.key});
+  const AlertSummary({this.expanded = false, this.snapshot, super.key});
 
   final bool expanded;
+  final TelemetrySnapshot? snapshot;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: const Color(0xFFEAF2E7),
-      borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: const Color(0xFFD7E5D3)),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.check_circle_rounded, color: forest, size: 19),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'All readings within baseline',
-                style: TextStyle(
-                  color: forest,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (expanded) ...[
-                const SizedBox(height: 5),
-                const Text(
-                  'No biometric anomalies detected in the latest sample. Home safe zone is active.',
-                  style: TextStyle(color: mutedInk, fontSize: 11.5),
-                ),
-              ] else
-                const Padding(
-                  padding: EdgeInsets.only(top: 3),
-                  child: Text(
-                    'No new alerts · Last checked 9:42 AM',
-                    style: TextStyle(color: mutedInk, fontSize: 10.5),
+  Widget build(BuildContext context) {
+    final isCritical = snapshot?.isCritical ?? false;
+    final isExercise = snapshot?.isExercise ?? false;
+
+    final bgColor = isCritical
+        ? const Color(0xFFFDEEEC)
+        : (isExercise ? const Color(0xFFFEF5EA) : const Color(0xFFEAF2E7));
+    final borderColor = isCritical
+        ? coral.withValues(alpha: 0.5)
+        : (isExercise
+            ? const Color(0xFFE89635).withValues(alpha: 0.5)
+            : const Color(0xFFD7E5D3));
+    final iconColor = isCritical
+        ? coral
+        : (isExercise ? const Color(0xFFE89635) : forest);
+    final titleText = isCritical
+        ? (snapshot?.alertMessage ?? 'CRITICAL: Biometric Threshold Exceeded')
+        : (isExercise
+            ? 'Cardio Zone Active · 118 BPM'
+            : 'All readings within baseline');
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isCritical
+                ? Icons.warning_amber_rounded
+                : (isExercise
+                    ? Icons.directions_run_rounded
+                    : Icons.check_circle_rounded),
+            color: iconColor,
+            size: 19,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titleText,
+                  style: TextStyle(
+                    color: iconColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-            ],
+                if (expanded) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    isCritical
+                        ? 'Immediate intervention recommended. Alert notifications dispatched to registered caregivers.'
+                        : (isExercise
+                            ? 'Heart rate elevated during aerobic movement. SpO₂ remains stable at 96.5%.'
+                            : 'No biometric anomalies detected in the latest sample. Home safe zone is active.'),
+                    style: const TextStyle(color: mutedInk, fontSize: 11.5),
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      isCritical
+                          ? 'Emergency alert active · Live GPS lock'
+                          : 'No new alerts · Live stream active',
+                      style: const TextStyle(color: mutedInk, fontSize: 10.5),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class ConnectivityCard extends StatelessWidget {
@@ -1322,18 +1519,89 @@ class AlertRow extends StatelessWidget {
 }
 
 class NotificationButton extends StatelessWidget {
-  const NotificationButton({super.key});
+  const NotificationButton({this.onSignOut, this.profile, super.key});
+
+  final VoidCallback? onSignOut;
+  final UserProfile? profile;
 
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: 'Notifications',
-    onPressed: () {},
+    tooltip: 'Account & Device Options',
+    onPressed: () {
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.account_circle_rounded,
+                        color: forest, size: 28),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile?.name ?? 'Theophany Bandure',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 16),
+                        ),
+                        Text(
+                          '${profile?.email ?? "theophany@vitalband.com"} · ${profile?.role.title ?? "Caregiver"}',
+                          style: const TextStyle(color: mutedInk, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                ListTile(
+                  leading: const Icon(Icons.phone_forwarded_rounded,
+                      color: coral),
+                  title: const Text(
+                      'Test Automated Emergency Relative Call',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text(
+                      'Triggers automated voice dispatch screen directly',
+                      style: TextStyle(fontSize: 11)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    TelemetryService.instance.triggerStationarySpike();
+                    TelemetryService.instance.fastForwardCountdown();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.logout_rounded, color: ink),
+                  title: const Text('Sign Out',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text(
+                      'Return to account login / create demo account',
+                      style: TextStyle(fontSize: 11)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onSignOut?.call();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
     style: IconButton.styleFrom(
       backgroundColor: Colors.white,
       foregroundColor: ink,
       fixedSize: const Size(42, 42),
     ),
-    icon: const Icon(Icons.notifications_none_rounded, size: 21),
+    icon: const Icon(Icons.more_vert_rounded, size: 21),
   );
 }
 

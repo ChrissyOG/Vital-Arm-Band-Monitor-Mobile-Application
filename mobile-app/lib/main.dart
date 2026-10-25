@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_shell.dart';
 import 'app_theme.dart';
 import 'auth_screen.dart';
+import 'user_profile.dart';
 
 void main() {
   runApp(const VitalBandApp());
@@ -13,6 +14,23 @@ class VitalBandApp extends StatelessWidget {
 
   static final _navigatorKey = GlobalKey<NavigatorState>();
 
+  static void navigateToShell(UserProfile profile) {
+    _navigatorKey.currentState?.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => AppShell(
+          profile: profile,
+          onSignOut: () {
+            _navigatorKey.currentState?.pushReplacement(
+              MaterialPageRoute<void>(
+                builder: (_) => AuthScreen(onAuthenticated: navigateToShell),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -21,12 +39,7 @@ class VitalBandApp extends StatelessWidget {
       navigatorKey: _navigatorKey,
       theme: buildAppTheme(),
       home: AuthScreen(
-        onAuthenticated: (profile) {
-          // Replace sign-in after authentication so Back doesn't reopen it.
-          _navigatorKey.currentState!.pushReplacement(
-            MaterialPageRoute<void>(builder: (_) => AppShell(profile: profile)),
-          );
-        },
+        onAuthenticated: (profile) => navigateToShell(profile),
       ),
     );
   }
