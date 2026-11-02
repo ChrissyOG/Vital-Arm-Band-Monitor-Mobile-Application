@@ -49,7 +49,7 @@ class SignInScreen extends StatefulWidget {
 
 class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _email = TextEditingController(text: 'theophany@vitalband.com');
+  final _email = TextEditingController(text: 'theophany@utano.app');
   final _password = TextEditingController(text: 'password123');
   UserRole _role = UserRole.caregiver;
   bool _hidePassword = true;
@@ -150,7 +150,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       avatar: const Icon(Icons.person, size: 14, color: forest),
                       label: const Text('Theophany Bandure', style: TextStyle(fontSize: 11)),
                       onPressed: () {
-                        _email.text = 'theophany@vitalband.com';
+                        _email.text = 'theophany@utano.app';
                         _password.text = 'password123';
                         setState(() => _role = UserRole.caregiver);
                       },
@@ -160,7 +160,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       avatar: const Icon(Icons.flash_on, size: 14, color: Color(0xFFE89635)),
                       label: const Text('Demo Account', style: TextStyle(fontSize: 11)),
                       onPressed: () {
-                        _email.text = 'demo@vitalband.com';
+                        _email.text = 'demo@utano.app';
                         _password.text = 'password123';
                         setState(() => _role = UserRole.caregiver);
                       },
@@ -265,7 +265,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Text(
-                      'New to Vital Band? ',
+                      'New to Utano? ',
                       style: TextStyle(color: mutedInk),
                     ),
                     TextButton(
@@ -350,7 +350,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final title = switch (_step) {
-      0 => 'How will you use Vital Band?',
+      0 => 'How will you use Utano?',
       1 => 'Create your account',
       _ =>
         _role!.monitorsSomeone
@@ -642,27 +642,53 @@ class BrandMark extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Container(
-        width: compact ? 36 : 44,
-        height: compact ? 36 : 44,
-        decoration: BoxDecoration(
-          color: forest,
-          borderRadius: BorderRadius.circular(compact ? 11 : 14),
-        ),
-        child: Icon(
-          Icons.monitor_heart_rounded,
-          color: lime,
-          size: compact ? 21 : 25,
+      ClipRRect(
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+        child: Image.asset(
+          'assets/images/utano_logo.png',
+          width: compact ? 36 : 46,
+          height: compact ? 36 : 46,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: compact ? 36 : 46,
+            height: compact ? 36 : 46,
+            decoration: BoxDecoration(
+              color: forest,
+              borderRadius: BorderRadius.circular(compact ? 10 : 12),
+            ),
+            child: Icon(
+              Icons.monitor_heart_rounded,
+              color: lime,
+              size: compact ? 21 : 25,
+            ),
+          ),
         ),
       ),
       const SizedBox(width: 10),
-      Text(
-        'vital band',
-        style: TextStyle(
-          color: ink,
-          fontSize: compact ? 18 : 20,
-          fontWeight: FontWeight.w800,
-        ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'utano',
+            style: TextStyle(
+              color: ink,
+              fontSize: compact ? 19 : 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+          if (!compact)
+            const Text(
+              'HEALTH & VITAL MONITOR',
+              style: TextStyle(
+                color: forest,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+        ],
       ),
     ],
   );

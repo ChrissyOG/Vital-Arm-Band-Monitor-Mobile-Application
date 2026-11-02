@@ -617,7 +617,7 @@ class DeviceStatusBanner extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Vital Band AU-001  ·  ESP32 · Batt $battery%',
+                'Utano Band AU-001  ·  ESP32 · Batt $battery%',
                 style: const TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
               ),
             ],

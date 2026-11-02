@@ -54,6 +54,14 @@ class AuthService extends ChangeNotifier {
       createdAt: DateTime.now().subtract(const Duration(days: 14)),
     );
     _accounts[theo.email.toLowerCase()] = theo;
+    _accounts['theophany@utano.app'] = RegisteredAccount(
+      name: 'Theophany Bandure',
+      email: 'theophany@utano.app',
+      password: 'password123',
+      role: UserRole.caregiver,
+      monitoredName: 'Miriam Bandure',
+      createdAt: DateTime.now().subtract(const Duration(days: 14)),
+    );
 
     // Demo account for quick presentation
     final demo = RegisteredAccount(
@@ -65,6 +73,14 @@ class AuthService extends ChangeNotifier {
       createdAt: DateTime.now().subtract(const Duration(days: 7)),
     );
     _accounts[demo.email.toLowerCase()] = demo;
+    _accounts['demo@utano.app'] = RegisteredAccount(
+      name: 'Alex Morgan',
+      email: 'demo@utano.app',
+      password: 'password123',
+      role: UserRole.caregiver,
+      monitoredName: 'Miriam Bandure',
+      createdAt: DateTime.now().subtract(const Duration(days: 7)),
+    );
   }
 
   /// Registers a brand new account in the system database.
