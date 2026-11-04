@@ -648,7 +648,7 @@ class BrandMark extends StatelessWidget {
           'assets/images/utano_logo.png',
           width: compact ? 36 : 46,
           height: compact ? 36 : 46,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => Container(
             width: compact ? 36 : 46,
             height: compact ? 36 : 46,
