@@ -1002,3 +1002,156 @@ class _DemoButton extends StatelessWidget {
     );
   }
 }
+
+/// Real-time AI Assistant Insights Card for the Overview Dashboard
+class UtanoAiOverviewCard extends StatelessWidget {
+  const UtanoAiOverviewCard({
+    required this.snapshot,
+    required this.patientName,
+    this.onOpenAiChat,
+    super.key,
+  });
+
+  final TelemetrySnapshot snapshot;
+  final String patientName;
+  final VoidCallback? onOpenAiChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCritical = snapshot.isCritical;
+    final isExercise = snapshot.isExercise;
+
+    final String insightText = isCritical
+        ? '⚠️ Critical Anomaly Flagged: Resting pulse at ${snapshot.heartRate} BPM with SpO₂ at ${snapshot.spo2.toStringAsFixed(1)}%. Gemini clinical protocol has initiated the 2-minute safety escalation.'
+        : isExercise
+            ? '🏃 Exercise Correlation Confirmed: Elevated pulse (${snapshot.heartRate} BPM) is synchronized with physical velocity (${snapshot.speedKmh.toStringAsFixed(1)} km/h). False emergency alarm suppressed.'
+            : '🩺 Nominal Baseline Confirmed: Patient $patientName\'s cardiopulmonary telemetry is stable. Pulse (${snapshot.heartRate} BPM) and oxygenation (${snapshot.spo2.toStringAsFixed(1)}% SpO₂) are within optimal physiologic bounds.';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isCritical
+              ? coral
+              : isExercise
+                  ? const Color(0xFFE89635)
+                  : const Color(0xFFD0E1D9),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isCritical ? coral : forest).withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [forest, Color(0xFF0F3D35)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome, color: lime, size: 13),
+                    SizedBox(width: 5),
+                    Text(
+                      'Utano Gemini AI',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (isCritical ? coral : forest).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 6,
+                      color: isCritical ? coral : forest,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isCritical ? 'ALERT ACTIVE' : 'ACTIVE INFERENCE',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: isCritical ? coral : forest,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            insightText,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.45,
+              color: ink,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: onOpenAiChat,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: canvas,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: line),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.chat_bubble_outline_rounded, size: 14, color: forest),
+                      SizedBox(width: 6),
+                      Text(
+                        'Ask Utano AI about this telemetry...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: forest,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 11, color: forest),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

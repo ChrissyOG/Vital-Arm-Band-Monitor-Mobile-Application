@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'ai_assistant_screen.dart';
 import 'animation_widgets.dart';
 import 'app_theme.dart';
 import 'mqtt_service.dart';
@@ -51,17 +52,27 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final role = widget.profile.role;
     final names = role.monitorsSomeone
-        ? const ['Overview', 'History', 'Location', 'Alerts']
-        : const ['Overview', 'Activity', 'History', 'Alerts'];
+        ? const ['Overview', 'AI Assistant', 'History', 'Location', 'Alerts']
+        : const ['Overview', 'AI Assistant', 'Activity', 'History', 'Alerts'];
     final pages = role.monitorsSomeone
         ? <Widget>[
-            OverviewScreen(profile: widget.profile, onSignOut: widget.onSignOut),
+            OverviewScreen(
+              profile: widget.profile,
+              onSignOut: widget.onSignOut,
+              onOpenAiChat: () => setState(() => _index = 1),
+            ),
+            AiAssistantScreen(profile: widget.profile),
             HistoryScreen(name: widget.profile.monitoredName),
             LocationScreen(name: widget.profile.monitoredName),
             AlertsScreen(name: widget.profile.monitoredName),
           ]
         : <Widget>[
-            OverviewScreen(profile: widget.profile, onSignOut: widget.onSignOut),
+            OverviewScreen(
+              profile: widget.profile,
+              onSignOut: widget.onSignOut,
+              onOpenAiChat: () => setState(() => _index = 1),
+            ),
+            AiAssistantScreen(profile: widget.profile),
             ActivityScreen(name: widget.profile.name),
             HistoryScreen(name: widget.profile.name),
             AlertsScreen(name: widget.profile.name),
@@ -69,12 +80,14 @@ class _AppShellState extends State<AppShell> {
     final icons = role.monitorsSomeone
         ? const [
             Icons.grid_view_rounded,
+            Icons.auto_awesome_rounded,
             Icons.show_chart_rounded,
             Icons.location_on_outlined,
             Icons.notifications_none_rounded,
           ]
         : const [
             Icons.grid_view_rounded,
+            Icons.auto_awesome_rounded,
             Icons.directions_run_rounded,
             Icons.show_chart_rounded,
             Icons.notifications_none_rounded,
@@ -101,10 +114,16 @@ class _AppShellState extends State<AppShell> {
 }
 
 class OverviewScreen extends StatelessWidget {
-  const OverviewScreen({required this.profile, this.onSignOut, super.key});
+  const OverviewScreen({
+    required this.profile,
+    this.onSignOut,
+    this.onOpenAiChat,
+    super.key,
+  });
 
   final UserProfile profile;
   final VoidCallback? onSignOut;
+  final VoidCallback? onOpenAiChat;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +152,12 @@ class OverviewScreen extends StatelessWidget {
               name: subject,
               isCritical: snapshot.isCritical,
               battery: snapshot.batteryPercentage,
+            ),
+            const SizedBox(height: 14),
+            UtanoAiOverviewCard(
+              snapshot: snapshot,
+              patientName: subject,
+              onOpenAiChat: onOpenAiChat,
             ),
             if (!isFitness && role.monitorsSomeone) ...[
               const SizedBox(height: 16),
