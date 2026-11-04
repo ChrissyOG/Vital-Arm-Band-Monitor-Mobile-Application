@@ -74,7 +74,7 @@ class TelemetryService extends ChangeNotifier {
   late int _heartRate;
   late double _spo2;
   late double _temperature;
-  final int _batteryPercentage = 88;
+  int _batteryPercentage = 88;
   late double _speedKmh;
   late List<double> _heartRateHistory;
   late List<double> _spo2History;
@@ -170,6 +170,68 @@ class TelemetryService extends ChangeNotifier {
     _isNotificationActive = false;
     _cancelCountdown();
     setScenario(DemoScenario.normal);
+  }
+
+  /// Ingests live telemetry payload from ESP32 via MQTT (broker.hivemq.com)
+  void ingestLiveTelemetry({
+    required int heartRate,
+    required double spo2,
+    required double temperature,
+    required int batteryPercentage,
+    required double speedKmh,
+    String? status,
+  }) {
+    _heartRate = heartRate;
+    _spo2 = spo2;
+    _temperature = temperature;
+    _speedKmh = speedKmh;
+    _batteryPercentage = batteryPercentage;
+    _lastUpdated = DateTime.now();
+
+    _heartRateHistory.add(heartRate.toDouble() / 150.0);
+    if (_heartRateHistory.length > 20) _heartRateHistory.removeAt(0);
+    _spo2History.add(spo2 / 100.0);
+    if (_spo2History.length > 20) _spo2History.removeAt(0);
+
+    // Smart activity filter: speed > 5.5 km/h correlates elevated HR with exercise
+    if (_speedKmh >= 5.5 && _heartRate > 105) {
+      _isActivityCorrelated = true;
+      _scenario = DemoScenario.exercise;
+      _statusText = 'Aerobic exercise detected (Smart Filter Active)';
+      _statusColor = forest;
+      _cancelCountdown();
+      _isNotificationActive = false;
+      _alertMessage = 'Activity-Induced Elevation: Pulse rate $_heartRate BPM correlated with movement (${_speedKmh.toStringAsFixed(1)} km/h).';
+    } else if (_spo2 < 90.0 || _heartRate > 125 || _heartRate < 45 || status == 'WARNING' || status == 'CRITICAL') {
+      _isActivityCorrelated = false;
+      _scenario = DemoScenario.emergency;
+      _statusText = 'Critical Anomaly: HR ${_heartRate}bpm, SpO2 ${_spo2.toStringAsFixed(1)}%';
+      _statusColor = coral;
+      _alertMessage = _spo2 < 90.0
+          ? 'Hypoxemia Alert: Blood oxygen critically low (${_spo2.toStringAsFixed(1)}%).'
+          : 'Tachycardia Alert: Heart rate elevated at $_heartRate BPM.';
+      if (!_isNotificationActive && !_isEmergencyCallActive) {
+        _startEmergencyCountdown();
+      }
+    } else {
+      _isActivityCorrelated = false;
+      _scenario = DemoScenario.normal;
+      _statusText = 'Within baseline';
+      _statusColor = forest;
+      _alertMessage = null;
+    }
+
+    notifyListeners();
+  }
+
+  /// Ingests critical SOS Panic Button alert from ESP32 via MQTT
+  void ingestLiveEmergencyAlert(String message) {
+    _scenario = DemoScenario.emergency;
+    _alertMessage = message;
+    _statusText = 'CRITICAL: $message';
+    _statusColor = coral;
+    _startEmergencyCountdown();
+    notifyListeners();
   }
 
   void _startEmergencyCountdown() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'animation_widgets.dart';
 import 'app_theme.dart';
+import 'mqtt_service.dart';
 import 'telemetry_service.dart';
 import 'user_profile.dart';
 
@@ -22,6 +23,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    MqttService.instance.connect();
     TelemetryService.instance.addListener(_handleTelemetryChange);
   }
 
@@ -617,7 +619,7 @@ class DeviceStatusBanner extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Utano Band AU-001  ·  ESP32 · Batt $battery%',
+                'Utano Band AU-001  ·  HiveMQ MQTT · Batt $battery%',
                 style: const TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
               ),
             ],

@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <PubSubClient.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <ArduinoJson.h>
@@ -27,6 +28,12 @@
 // ============================================================================
 const char* WIFI_SSID     = "Africa_University_WiFi"; // Update for test network
 const char* WIFI_PASSWORD = "YourWifiPassword";
+
+// HiveMQ Public MQTT Broker (Free, Global, Zero Account / Zero Sign-In)
+const char* MQTT_BROKER          = "broker.hivemq.com";
+const int   MQTT_PORT            = 1883;
+const char* MQTT_TOPIC_TELEMETRY = "utano/AU-001/telemetry";
+const char* MQTT_TOPIC_ALERTS    = "utano/AU-001/alerts";
 
 // Backend API Configuration (Lee Rose's Server)
 const char* BACKEND_BASE_URL    = "http://192.168.1.100:5000"; // Local backend IP
@@ -57,6 +64,10 @@ DallasTemperature tempSensors(&oneWire);
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(2);
 
+// MQTT Client Instance
+WiFiClient espWiFiClient;
+PubSubClient mqtt(espWiFiClient);
+
 // Biometric State
 struct VitalState {
   int heartRate;
@@ -82,6 +93,7 @@ const float TEMP_MAX_THRESHOLD = 38.5;
 // FUNCTION DECLARATIONS
 // ============================================================================
 void connectToWiFi();
+void reconnectMQTT();
 void readSensors();
 void sendTelemetryPayload();
 void checkAndSendAlerts();
@@ -115,6 +127,10 @@ void setup() {
 
   // Connect Wi-Fi
   connectToWiFi();
+
+  // Configure HiveMQ Public MQTT
+  mqtt.setServer(MQTT_BROKER, MQTT_PORT);
+  mqtt.setBufferSize(512);
 }
 
 // ============================================================================
@@ -124,6 +140,14 @@ void loop() {
   // Feed GPS Serial buffer continuously
   while (gpsSerial.available() > 0) {
     gps.encode(gpsSerial.read());
+  }
+
+  // Maintain MQTT Connection
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!mqtt.connected()) {
+      reconnectMQTT();
+    }
+    mqtt.loop();
   }
 
   // Check SOS Button Press (Active LOW, debounced)
@@ -244,7 +268,13 @@ void sendTelemetryPayload() {
   serializeJsonPretty(doc, Serial);
   Serial.println();
 
-  // Send to Backend API
+  // 1. Publish to HiveMQ Public MQTT Broker (Free, Real-Time)
+  if (mqtt.connected()) {
+    bool ok = mqtt.publish(MQTT_TOPIC_TELEMETRY, jsonOutput.c_str());
+    Serial.printf("[MQTT] Published to %s: %s\n", MQTT_TOPIC_TELEMETRY, ok ? "SUCCESS" : "FAILED");
+  }
+
+  // 2. Send to Local Backend API (Fallback)
   HTTPClient http;
   http.begin(TELEMETRY_ENDPOINT);
   http.addHeader("Content-Type", "application/json");
@@ -291,6 +321,14 @@ void checkAndSendAlerts() {
   if (alertTriggered && WiFi.status() == WL_CONNECTED) {
     String payload;
     serializeJson(doc, payload);
+
+    // Publish to HiveMQ MQTT Alert Topic
+    if (mqtt.connected()) {
+      mqtt.publish(MQTT_TOPIC_ALERTS, payload.c_str());
+      Serial.println(F("[MQTT] Critical biometric alert published to HiveMQ!"));
+    }
+
+    // HTTP fallback
     HTTPClient http;
     http.begin(ALERT_ENDPOINT);
     http.addHeader("Content-Type", "application/json");
@@ -305,15 +343,40 @@ void triggerSOSAlert() {
   doc["device_id"] = DEVICE_ID;
   doc["alert_type"] = "SOS_BUTTON_PRESSED";
   doc["severity"] = "CRITICAL";
+  doc["message"] = "SOS Panic Button Pressed by Patient!";
   doc["action_required"] = "NOTIFY_CAREGIVER_IMMEDIATELY";
 
   String payload;
   serializeJson(doc, payload);
+
+  // Publish to HiveMQ MQTT Alert Topic
+  if (mqtt.connected()) {
+    mqtt.publish(MQTT_TOPIC_ALERTS, payload.c_str());
+    Serial.println(F("[MQTT] SOS Emergency Alert published to HiveMQ!"));
+  }
+
   HTTPClient http;
   http.begin(ALERT_ENDPOINT);
   http.addHeader("Content-Type", "application/json");
   http.POST(payload);
   http.end();
+}
+
+// ============================================================================
+// MQTT CONNECTION MANAGEMENT
+// ============================================================================
+void reconnectMQTT() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (!mqtt.connected()) {
+    Serial.print(F("[MQTT] Connecting to HiveMQ public broker... "));
+    String clientId = "ESP32_Utano_" + String(random(0xffff), HEX);
+    if (mqtt.connect(clientId.c_str())) {
+      Serial.println(F("CONNECTED!"));
+      mqtt.publish(MQTT_TOPIC_ALERTS, "{\"alert_type\":\"DEVICE_ONLINE\",\"device_id\":\"VITAL-BAND-AU-001\"}");
+    } else {
+      Serial.printf("FAILED (rc=%d)\n", mqtt.state());
+    }
+  }
 }
 
 // ============================================================================
