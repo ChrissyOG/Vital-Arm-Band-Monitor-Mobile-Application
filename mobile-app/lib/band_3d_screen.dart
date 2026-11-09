@@ -6,10 +6,10 @@ import 'telemetry_service.dart';
 import 'user_profile.dart';
 
 enum BandViewMode {
-  worn,     // 1. How It Looks (Docked in Wide Upper-Arm Sleeve)
-  split,    // 2. Removable Pod (Detached for Washing)
-  sensors,  // 3. Sensor Area Sits Against Skin (Green LEDs)
-  exploded, // 4. What's Inside the Pod (Exploded CAD Architecture)
+  worn,     // 1. How It Looks on the Arm (Docked in Wide Sleeve)
+  split,    // 2. Removable Water-Resistant Pod
+  sensors,  // 3. Sensor Area Sits Against Skin (| : | Green LEDs)
+  exploded, // 4. What's Inside the Pod (Exploded 5-Layer CAD)
 }
 
 class Band3dScreen extends StatefulWidget {
@@ -28,22 +28,66 @@ class _Band3dScreenState extends State<Band3dScreen>
   late final AnimationController _explodeController;
   late final AnimationController _pulseController;
 
-  BandViewMode _viewMode = BandViewMode.worn;
-  bool _isAutoSpin = true;
+  BandViewMode _viewMode = BandViewMode.exploded;
+  bool _isAutoSpin = false;
   bool _isStudioLight = false;
+  int _selectedLayerIndex = -1; // -1 = all layers, 0..4 = highlighted internal layer
 
-  double _rotX = 0.26;
-  double _rotY = -0.22;
+  double _rotX = 0.36;
+  double _rotY = -0.38;
   double _zoom = 1.05;
   double _podFlip = 0.0;
-  double _sceneOffsetX = 0.0;
+  double _sceneOffsetX = -38.0;
 
   // Target values for smooth animated camera movement
-  double _targetRotX = 0.26;
-  double _targetRotY = -0.22;
+  double _targetRotX = 0.36;
+  double _targetRotY = -0.38;
   double _targetZoom = 1.05;
   double _targetPodFlip = 0.0;
-  double _targetSceneOffsetX = 0.0;
+  double _targetSceneOffsetX = -38.0;
+
+  static const List<_InternalPartSpec> _insideParts = [
+    _InternalPartSpec(
+      index: 0,
+      title: 'Water-resistant casing',
+      subtitle: 'Splash & sweat resistant matte polycarbonate shell with illuminated Heart-ECG & cyan status bar.',
+      badge: 'IP67 Shell',
+      color: Color(0xFF38BDF8),
+      icon: Icons.shield_outlined,
+    ),
+    _InternalPartSpec(
+      index: 1,
+      title: 'GPS module & Cellular (LTE) / Wi-Fi antenna',
+      subtitle: 'Ceramic L1 GPS patch for location & movement speed + LTE/Wi-Fi antenna with automatic fallback.',
+      badge: 'GPS + LTE/Wi-Fi',
+      color: Color(0xFFF59E0B),
+      icon: Icons.satellite_alt_rounded,
+    ),
+    _InternalPartSpec(
+      index: 2,
+      title: 'Main PCB (controller)',
+      subtitle: 'Multi-layer emerald FR4 circuit board housing the ultra-low-power MCU, RF shield & encrypted memory.',
+      badge: 'ESP32 MCU',
+      color: Color(0xFF10B981),
+      icon: Icons.memory_rounded,
+    ),
+    _InternalPartSpec(
+      index: 3,
+      title: 'Battery (1000mAh LiPo)',
+      subtitle: 'High-density rechargeable lithium-polymer pouch cell engineered for multi-day continuous monitoring.',
+      badge: '1000 mAh',
+      color: Color(0xFFEAB308),
+      icon: Icons.battery_charging_full_rounded,
+    ),
+    _InternalPartSpec(
+      index: 4,
+      title: 'Sensors (HR, SpO₂, Temperature, Motion)',
+      subtitle: 'Dual-wavelength green/IR optical PPG array (| : |), clinical skin thermistor & 6-axis accelerometer.',
+      badge: '4-in-1 Biosensor',
+      color: Color(0xFF34D399),
+      icon: Icons.monitor_heart_rounded,
+    ),
+  ];
 
   @override
   void initState() {
@@ -52,9 +96,11 @@ class _Band3dScreenState extends State<Band3dScreen>
       vsync: this,
       duration: const Duration(seconds: 14),
     )..addListener(() {
-        if (_isAutoSpin && mounted) {
+        if (mounted) {
           setState(() {
-            _targetRotY += 0.0065;
+            if (_isAutoSpin) {
+              _targetRotY += 0.0065;
+            }
             _rotY += (_targetRotY - _rotY) * 0.12;
             _rotX += (_targetRotX - _rotX) * 0.12;
             _zoom += (_targetZoom - _zoom) * 0.12;
@@ -68,13 +114,13 @@ class _Band3dScreenState extends State<Band3dScreen>
     _dockController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 650),
-      value: 0.0, // 0.0 = Docked (Worn), 1.0 = Detached (Split)
+      value: 1.0, // Start detached & exploded so user sees "What's Inside the Pod"
     );
 
     _explodeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
-      value: 0.0, // 0.0 = Assembled, 1.0 = Exploded Internal Layers
+      value: 1.0,
     );
 
     _pulseController = AnimationController(
@@ -95,10 +141,13 @@ class _Band3dScreenState extends State<Band3dScreen>
   void _setViewMode(BandViewMode mode) {
     setState(() {
       _viewMode = mode;
-      _isAutoSpin = false;
+      if (mode != BandViewMode.exploded) {
+        _selectedLayerIndex = -1;
+      }
 
       switch (mode) {
         case BandViewMode.worn:
+          _isAutoSpin = true;
           _dockController.animateTo(0.0, curve: Curves.easeInOutCubic);
           _explodeController.animateTo(0.0, curve: Curves.easeInOutCubic);
           _targetRotX = 0.26;
@@ -108,6 +157,7 @@ class _Band3dScreenState extends State<Band3dScreen>
           _targetSceneOffsetX = 0.0;
           break;
         case BandViewMode.split:
+          _isAutoSpin = false;
           _dockController.animateTo(1.0, curve: Curves.easeInOutCubic);
           _explodeController.animateTo(0.0, curve: Curves.easeInOutCubic);
           _targetRotX = 0.28;
@@ -117,32 +167,34 @@ class _Band3dScreenState extends State<Band3dScreen>
           _targetSceneOffsetX = 0.0;
           break;
         case BandViewMode.sensors:
+          _isAutoSpin = false;
           _dockController.animateTo(1.0, curve: Curves.easeInOutCubic);
           _explodeController.animateTo(0.0, curve: Curves.easeInOutCubic);
-          _targetRotX = -0.20;
-          _targetRotY = 0.35;
+          _targetRotX = -0.18;
+          _targetRotY = 0.32;
           _targetZoom = 1.35;
-          _targetPodFlip = 1.0; // Show underside with green LEDs
-          _targetSceneOffsetX = -55.0;
+          _targetPodFlip = 1.0; // Show underside with | : | green LEDs
+          _targetSceneOffsetX = -52.0;
           break;
         case BandViewMode.exploded:
+          _isAutoSpin = false;
           _dockController.animateTo(1.0, curve: Curves.easeInOutCubic);
           _explodeController.animateTo(1.0, curve: Curves.easeInOutCubic);
-          _targetRotX = 0.38;
-          _targetRotY = -0.45;
-          _targetZoom = 0.92;
+          _targetRotX = 0.36;
+          _targetRotY = -0.38;
+          _targetZoom = 1.04;
           _targetPodFlip = 0.0;
-          _targetSceneOffsetX = -45.0;
+          _targetSceneOffsetX = -38.0;
           break;
       }
     });
   }
 
-  void _toggleDock() {
-    if (_dockController.value > 0.5) {
-      _setViewMode(BandViewMode.worn);
+  void _toggleExplodeOrDock() {
+    if (_viewMode != BandViewMode.exploded) {
+      _setViewMode(BandViewMode.exploded);
     } else {
-      _setViewMode(BandViewMode.split);
+      _setViewMode(BandViewMode.worn);
     }
   }
 
@@ -171,7 +223,8 @@ class _Band3dScreenState extends State<Band3dScreen>
                   decoration: BoxDecoration(
                     color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                    border: Border.all(
+                        color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
                   ),
                   child: const Icon(Icons.view_in_ar_rounded,
                       color: Color(0xFF38BDF8), size: 20),
@@ -189,7 +242,7 @@ class _Band3dScreenState extends State<Band3dScreen>
                       ),
                     ),
                     Text(
-                      'Comfortable, Smart Upper-Arm Monitor',
+                      'Nylon-Spandex Weave • What\'s Inside the Pod',
                       style: TextStyle(
                         color: subColor,
                         fontSize: 11,
@@ -204,15 +257,20 @@ class _Band3dScreenState extends State<Band3dScreen>
               IconButton(
                 tooltip: _isStudioLight ? 'Starlink Dark HUD' : 'Studio White',
                 icon: Icon(
-                  _isStudioLight ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                  _isStudioLight
+                      ? Icons.dark_mode_rounded
+                      : Icons.light_mode_rounded,
                   color: textColor,
                 ),
-                onPressed: () => setState(() => _isStudioLight = !_isStudioLight),
+                onPressed: () =>
+                    setState(() => _isStudioLight = !_isStudioLight),
               ),
               IconButton(
                 tooltip: _isAutoSpin ? 'Pause Turntable' : 'Auto Turntable',
                 icon: Icon(
-                  _isAutoSpin ? Icons.pause_circle_rounded : Icons.play_circle_rounded,
+                  _isAutoSpin
+                      ? Icons.pause_circle_rounded
+                      : Icons.play_circle_rounded,
                   color: _isAutoSpin ? const Color(0xFF38BDF8) : textColor,
                 ),
                 onPressed: () {
@@ -231,9 +289,11 @@ class _Band3dScreenState extends State<Band3dScreen>
               children: [
                 // 3D Viewport Stage Card
                 Container(
-                  height: 380,
+                  height: 410,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF04070E) : const Color(0xFFE2E8F0),
+                    color: isDark
+                        ? const Color(0xFF04070E)
+                        : const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: isDark
@@ -242,7 +302,8 @@ class _Band3dScreenState extends State<Band3dScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
+                        color:
+                            Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -269,13 +330,15 @@ class _Band3dScreenState extends State<Band3dScreen>
                               if (details.scale != 1.0) {
                                 setState(() {
                                   _isAutoSpin = false;
-                                  _targetZoom = (_targetZoom * details.scale).clamp(0.65, 2.2);
+                                  _targetZoom =
+                                      (_targetZoom * details.scale).clamp(0.65, 2.2);
                                   _zoom = _targetZoom;
                                 });
                               }
                             },
                             child: AnimatedBuilder(
                               animation: Listenable.merge([
+                                _spinController,
                                 _dockController,
                                 _explodeController,
                                 _pulseController,
@@ -291,8 +354,10 @@ class _Band3dScreenState extends State<Band3dScreen>
                                     podFlip: _podFlip,
                                     sceneOffsetX: _sceneOffsetX,
                                     pulse: _pulseController.value,
+                                    spinPhase: _spinController.value,
                                     isStudioLight: _isStudioLight,
                                     isCritical: snapshot.isCritical,
+                                    selectedLayer: _selectedLayerIndex,
                                   ),
                                 );
                               },
@@ -300,7 +365,7 @@ class _Band3dScreenState extends State<Band3dScreen>
                           ),
                         ),
 
-                        // Top HUD Pill: Status & Active LED
+                        // Top HUD Pill: Status & Active Mode
                         Positioned(
                           top: 14,
                           left: 14,
@@ -318,7 +383,8 @@ class _Band3dScreenState extends State<Band3dScreen>
                                       .withValues(alpha: 0.90),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
+                                    color: const Color(0xFF38BDF8)
+                                        .withValues(alpha: 0.5),
                                   ),
                                 ),
                                 child: Row(
@@ -334,11 +400,7 @@ class _Band3dScreenState extends State<Band3dScreen>
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      _explodeController.value > 0.5
-                                          ? 'What\'s Inside the Pod (CAD)'
-                                          : (_dockController.value > 0.5
-                                              ? 'Removable Pod (Water-Resistant)'
-                                              : 'Upper-Arm Sleeve (Worn)'),
+                                      _modeBannerText(),
                                       style: TextStyle(
                                         color: textColor,
                                         fontSize: 11,
@@ -364,11 +426,11 @@ class _Band3dScreenState extends State<Band3dScreen>
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.battery_5_bar_rounded,
-                                        color: forest, size: 14),
+                                    const Icon(Icons.favorite_rounded,
+                                        color: Color(0xFF10B981), size: 13),
                                     const SizedBox(width: 4),
                                     Text(
-                                      '${snapshot.batteryPercentage}%',
+                                      '${snapshot.heartRate} BPM • ${snapshot.batteryPercentage}%',
                                       style: TextStyle(
                                         color: textColor,
                                         fontSize: 11,
@@ -383,34 +445,82 @@ class _Band3dScreenState extends State<Band3dScreen>
                           ),
                         ),
 
-                        // Bottom Floating Control: Dock / Detach Action
+                        // Bottom Floating Controls: Explode Slider & Quick Action
                         Positioned(
-                          bottom: 14,
-                          left: 14,
-                          right: 14,
+                          bottom: 12,
+                          left: 12,
+                          right: 12,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: (isDark
-                                          ? const Color(0xFF0F172A)
-                                          : Colors.white)
-                                      .withValues(alpha: 0.85),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '360° Drag • Pinch Zoom',
-                                  style: TextStyle(
-                                    color: subColor,
-                                    fontSize: 11,
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: (isDark
+                                            ? const Color(0xFF0F172A)
+                                            : Colors.white)
+                                        .withValues(alpha: 0.90),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.12),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.layers_rounded,
+                                          color: Color(0xFF38BDF8), size: 15),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Explode:',
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: SliderTheme(
+                                          data: SliderTheme.of(context).copyWith(
+                                            trackHeight: 3,
+                                            thumbShape:
+                                                const RoundSliderThumbShape(
+                                                    enabledThumbRadius: 6),
+                                            overlayShape:
+                                                const RoundSliderOverlayShape(
+                                                    overlayRadius: 12),
+                                          ),
+                                          child: Slider(
+                                            value: _explodeController.value,
+                                            activeColor: const Color(0xFF38BDF8),
+                                            inactiveColor: subColor
+                                                .withValues(alpha: 0.25),
+                                            onChanged: (val) {
+                                              setState(() {
+                                                _explodeController.value = val;
+                                                if (val > 0.15) {
+                                                  _dockController.value = 1.0;
+                                                  _viewMode =
+                                                      BandViewMode.exploded;
+                                                  _targetSceneOffsetX =
+                                                      -38.0 * val;
+                                                } else {
+                                                  _viewMode = BandViewMode.split;
+                                                  _targetSceneOffsetX = 0.0;
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               ElevatedButton.icon(
-                                onPressed: _toggleDock,
+                                onPressed: _toggleExplodeOrDock,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: isDark
                                       ? const Color(0xFF1E293B)
@@ -420,25 +530,26 @@ class _Band3dScreenState extends State<Band3dScreen>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
                                     side: BorderSide(
-                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
+                                      color: const Color(0xFF38BDF8)
+                                          .withValues(alpha: 0.5),
                                     ),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 8),
+                                      horizontal: 12, vertical: 10),
                                 ),
                                 icon: Icon(
-                                  _dockController.value > 0.5
-                                      ? Icons.system_update_alt_rounded
-                                      : Icons.open_in_full_rounded,
-                                  size: 16,
+                                  _explodeController.value > 0.5
+                                      ? Icons.compress_rounded
+                                      : Icons.auto_awesome_motion_rounded,
+                                  size: 15,
                                 ),
                                 label: Text(
-                                  _dockController.value > 0.5
-                                      ? 'Insert Into Sleeve'
-                                      : 'Remove Pod',
+                                  _explodeController.value > 0.5
+                                      ? 'Assemble'
+                                      : 'Inside Pod',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ),
@@ -450,9 +561,9 @@ class _Band3dScreenState extends State<Band3dScreen>
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
-                // View Angle Presets Row (Matching the 4 sub-images from the user's poster)
+                // 6 View Angle Presets Row (Matching Poster Sections + Creative Modes)
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
@@ -483,7 +594,7 @@ class _Band3dScreenState extends State<Band3dScreen>
                       ),
                       const SizedBox(width: 8),
                       _buildPresetChip(
-                        label: '4. What\'s Inside (CAD)',
+                        label: '4. What\'s Inside the Pod',
                         icon: Icons.layers_outlined,
                         isActive: _viewMode == BandViewMode.exploded,
                         onTap: () => _setViewMode(BandViewMode.exploded),
@@ -493,11 +604,163 @@ class _Band3dScreenState extends State<Band3dScreen>
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
 
-                // Key Features Checklist (From User Reference Poster)
+                // Interactive "What's Inside the Pod" Hardware Teardown Explorer
                 Container(
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.developer_board_rounded,
+                                  color: Color(0xFF38BDF8), size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'What\'s Inside the Pod (Tap to Highlight)',
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_selectedLayerIndex != -1)
+                            GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedLayerIndex = -1),
+                              child: const Text(
+                                'Show All',
+                                style: TextStyle(
+                                  color: Color(0xFF38BDF8),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ..._insideParts.map((part) {
+                        final isSelected = _selectedLayerIndex == part.index;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (_viewMode != BandViewMode.exploded) {
+                                _setViewMode(BandViewMode.exploded);
+                              }
+                              _selectedLayerIndex =
+                                  isSelected ? -1 : part.index;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(11),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? part.color.withValues(alpha: 0.14)
+                                  : (isDark
+                                      ? Colors.white.withValues(alpha: 0.03)
+                                      : const Color(0xFFF8FAFC)),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected
+                                    ? part.color
+                                    : (isDark
+                                        ? Colors.white.withValues(alpha: 0.07)
+                                        : Colors.black.withValues(alpha: 0.06)),
+                                width: isSelected ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: part.color.withValues(alpha: 0.18),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(part.icon,
+                                      color: part.color, size: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              part.title,
+                                              style: TextStyle(
+                                                color: textColor,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: part.color
+                                                  .withValues(alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              part.badge,
+                                              style: TextStyle(
+                                                color: part.color,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        part.subtitle,
+                                        style: TextStyle(
+                                          color: subColor,
+                                          fontSize: 11,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Fabric & Washability Highlights Card (From Poster)
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: cardBg,
                     borderRadius: BorderRadius.circular(20),
@@ -510,126 +773,38 @@ class _Band3dScreenState extends State<Band3dScreen>
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.health_and_safety_rounded,
-                              color: Color(0xFF38BDF8), size: 20),
+                          const Icon(Icons.checkroom_rounded,
+                              color: Color(0xFF10B981), size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            'Real-Time Health • Upper-Arm Band',
+                            'Nylon-Spandex Fabric & Care Guide',
                             style: TextStyle(
                               color: textColor,
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 14,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       _buildFeatureRow(
-                        title: 'Comfortable, Breathable Fabric Sleeve',
+                        title: 'Soft, Stretchable Nylon-Spandex Fibers',
                         desc:
-                            'Soft, stretchable, washable nylon-spandex sleeve. Snug upper-arm compression fit that stays firmly in place during daily activity.',
-                        badge: 'Machine Washable',
-                        badgeColor: Colors.blue,
+                            'Interwoven diagonal herringbone stretch fibers with breathable micro-channels that contour comfortably around the upper arm.',
+                        badge: 'Breathable Weave',
+                        badgeColor: const Color(0xFF38BDF8),
                         textColor: textColor,
                         subColor: subColor,
                       ),
-                      const Divider(height: 20),
+                      const Divider(height: 18),
                       _buildFeatureRow(
-                        title: 'Removable Water-Resistant Pod',
+                        title: 'Machine-Washable Fabric Sleeve',
                         desc:
-                            'Matte-black casing with glowing Heart-ECG emblem & blue status bar. Pops out easily before washing the sleeve.',
-                        badge: 'IP67 Splash Proof',
+                            'Remove the electronics pod before washing. The electronics pod is water-resistant (splash and sweat resistant), not fully waterproof.',
+                        badge: 'Easy Wash',
                         badgeColor: forest,
                         textColor: textColor,
                         subColor: subColor,
-                      ),
-                      const Divider(height: 20),
-                      _buildFeatureRow(
-                        title: 'Sensor Area Sits Against Skin',
-                        desc:
-                            'Direct optical photoplethysmography window with dual 525nm green LEDs & digital temperature probe for medical-grade vitals.',
-                        badge: 'Accurate Readings',
-                        badgeColor: const Color(0xFF10B981),
-                        textColor: textColor,
-                        subColor: subColor,
-                      ),
-                      const Divider(height: 20),
-                      _buildFeatureRow(
-                        title: 'What\'s Inside the Pod',
-                        desc:
-                            'GPS module (NEO-6M), Cellular LTE & Wi-Fi antennas, Main ESP32 PCB controller, 1000mAh battery, and motion sensors.',
-                        badge: 'Dual Connectivity',
-                        badgeColor: const Color(0xFFF59E0B),
-                        textColor: textColor,
-                        subColor: subColor,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                // Live Cloud Telemetry Status
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: const Color(0xFF38BDF8).withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.wifi_tethering_rounded,
-                            color: Color(0xFF38BDF8), size: 24),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Live Upper-Arm Vitals Stream',
-                              style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Heart rate · SpO₂ · Temperature · Motion',
-                              style: TextStyle(
-                                color: subColor,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: forest.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'CONNECTED',
-                          style: TextStyle(
-                            color: forest,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
                       ),
                     ],
                   ),
@@ -642,6 +817,19 @@ class _Band3dScreenState extends State<Band3dScreen>
         );
       },
     );
+  }
+
+  String _modeBannerText() {
+    switch (_viewMode) {
+      case BandViewMode.worn:
+        return '1. Upper-Arm Sleeve (Worn)';
+      case BandViewMode.split:
+        return '2. Removable Water-Resistant Pod';
+      case BandViewMode.sensors:
+        return '3. Skin-Contact Optical Sensors';
+      case BandViewMode.exploded:
+        return '4. What\'s Inside the Pod (CAD)';
+    }
   }
 
   Widget _buildPresetChip({
@@ -684,13 +872,17 @@ class _Band3dScreenState extends State<Band3dScreen>
             Icon(
               icon,
               size: 14,
-              color: isActive ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+              color: isActive
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : Colors.black87),
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isActive ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                color: isActive
+                    ? Colors.white
+                    : (isDark ? Colors.white70 : Colors.black87),
                 fontSize: 11,
                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
               ),
@@ -718,18 +910,20 @@ class _Band3dScreenState extends State<Band3dScreen>
             children: [
               Row(
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: badgeColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
@@ -765,8 +959,26 @@ class _Band3dScreenState extends State<Band3dScreen>
   }
 }
 
+class _InternalPartSpec {
+  const _InternalPartSpec({
+    required this.index,
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    required this.color,
+    required this.icon,
+  });
+
+  final int index;
+  final String title;
+  final String subtitle;
+  final String badge;
+  final Color color;
+  final IconData icon;
+}
+
 // ==============================================================================
-// 3D CUSTOM PAINTER: Wide Upper-Arm Sleeve + Heart-ECG Pod + Cyan LED Bar + Exploded Layers
+// 3D CUSTOM PAINTER: Interwoven Nylon-Spandex Sleeve + Exploded 5-Layer Pod CAD
 // ==============================================================================
 class UtanoUpperArmBand3dPainter extends CustomPainter {
   UtanoUpperArmBand3dPainter({
@@ -778,8 +990,10 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
     required this.podFlip,
     required this.sceneOffsetX,
     required this.pulse,
+    required this.spinPhase,
     required this.isStudioLight,
     required this.isCritical,
+    required this.selectedLayer,
   });
 
   final double rotX;
@@ -790,38 +1004,39 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
   final double podFlip;
   final double sceneOffsetX;
   final double pulse;
+  final double spinPhase;
   final bool isStudioLight;
   final bool isCritical;
+  final int selectedLayer;
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2 + sceneOffsetX;
-    final cy = size.height / 2 + 10;
+    final cy = size.height / 2 + 4;
 
-    // Draw Ground Contact Shadow
+    // 1. Ground Shadow
     _drawGroundShadow(canvas, cx, cy);
 
     final commands = <_DrawCommand>[];
 
-    // Band Group offset (shifts slightly left when pod is detached)
-    final bandShiftX = -45.0 * detach;
+    // Band Group shifts left when detached, and further left when exploded
+    final bandShiftX = -46.0 * detach - 70.0 * explode;
 
-    // 1. Wide Upper-Arm Fabric Compression Sleeve
-    _generateUpperArmSleeve(commands, cx + bandShiftX, cy);
+    // 2. Wide Upper-Arm Compression Sleeve (with Interwoven Herringbone Fibers)
+    if (explode < 0.85) {
+      _generateUpperArmSleeve(commands, cx + bandShiftX, cy);
+      _generateSleeveDock(commands, cx + bandShiftX, cy);
+    }
 
-    // 2. Sleeve Integrated Docking Pocket/Bezel
-    _generateSleeveDock(commands, cx + bandShiftX, cy);
-
-    // 3. Removable Pod (with Heart-ECG emblem, cyan LED bar, green back sensors, and exploded layers)
-    final podX = cx + bandShiftX + detach * 115.0;
-    final podY = cy - detach * 8.0;
-    final podZ = -detach * 20.0;
+    // 3. Removable Pod & 5 Exploded Internal Hardware Layers
+    final podX = cx + (1.0 - explode) * (bandShiftX + detach * 112.0);
+    final podY = cy - (1.0 - explode) * detach * 6.0;
+    final podZ = -(1.0 - explode) * detach * 18.0;
     _generatePodAndLayers(commands, podX, podY, podZ);
 
-    // Sort by depth (back to front: largest depth drawn first)
+    // Sort back-to-front by Z depth
     commands.sort((a, b) => b.depth.compareTo(a.depth));
 
-    // Execute draw commands
     for (final cmd in commands) {
       cmd.draw(canvas);
     }
@@ -831,16 +1046,16 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
     final shadowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          Colors.black.withValues(alpha: isStudioLight ? 0.35 : 0.55),
+          Colors.black.withValues(alpha: isStudioLight ? 0.30 : 0.50),
           Colors.transparent,
         ],
       ).createShader(
-        Rect.fromCircle(center: Offset(cx, cy + 120), radius: 145 * zoom),
+        Rect.fromCircle(center: Offset(cx, cy + 130), radius: 145 * zoom),
       );
 
     canvas.save();
-    canvas.translate(cx, cy + 120);
-    canvas.scale(1.0, 0.32);
+    canvas.translate(cx, cy + 130);
+    canvas.scale(1.0, 0.30);
     canvas.drawCircle(Offset.zero, 145 * zoom, shadowPaint);
     canvas.restore();
   }
@@ -865,12 +1080,14 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
     );
   }
 
-  // 1. Wide Upper-Arm Compression Sleeve (Nylon-Spandex Woven Fabric)
+  // ===========================================================================
+  // 1. UPPER-ARM SLEEVE WITH INTERWOVEN NYLON-SPANDEX HERRINGBONE FIBERS
+  // ===========================================================================
   void _generateUpperArmSleeve(List<_DrawCommand> list, double ox, double oy) {
-    const segments = 40;
-    const rx = 105.0; // Upper arm bicep radius
+    const segments = 44;
+    const rx = 104.0;
     const rz = 68.0;
-    const sleeveHeight = 76.0; // Wide upper-arm sleeve width
+    const sleeveHeight = 78.0;
 
     for (int i = 0; i < segments; i++) {
       final t1 = (i / segments) * math.pi * 2;
@@ -887,8 +1104,8 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
       final avgZ = (p1Top.z + p2Top.z + p2Btm.z + p1Btm.z) / 4;
       final normalZ = math.sin((t1 + t2) / 2);
 
-      // Dark heather fabric shading with woven depth
-      final shade = (26 + normalZ * 22).clamp(16, 52).toInt();
+      // Heather charcoal nylon-spandex base tone
+      final shade = (24 + normalZ * 20).clamp(14, 48).toInt();
       final fabricColor = Color.fromARGB(255, shade, shade + 2, shade + 6);
 
       list.add(
@@ -904,33 +1121,74 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
 
             canvas.drawPath(path, Paint()..color = fabricColor);
 
-            // Woven elastic knit texture lines
-            final threadPaint = Paint()
-              ..color = const Color(0xFF475569).withValues(alpha: 0.35)
+            // Interwoven Diagonal Herringbone Nylon-Spandex Fiber Strands
+            final fiberPaint1 = Paint()
+              ..color = const Color(0xFF94A3B8).withValues(alpha: 0.22)
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8;
+              ..strokeWidth = 0.85;
+            final fiberPaint2 = Paint()
+              ..color = const Color(0xFF475569).withValues(alpha: 0.30)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.85;
 
+            for (int r = 1; r <= 5; r++) {
+              final fA = r / 6.0;
+              final fB = (r + (i.isEven ? 0.65 : -0.65)) / 6.0;
+              final ax = p1Top.x + (p1Btm.x - p1Top.x) * fA;
+              final ay = p1Top.y + (p1Btm.y - p1Top.y) * fA;
+              final bx = p2Top.x + (p2Btm.x - p2Top.x) * fB.clamp(0.08, 0.92);
+              final by = p2Top.y + (p2Btm.y - p2Top.y) * fB.clamp(0.08, 0.92);
+              canvas.drawLine(
+                Offset(ax, ay),
+                Offset(bx, by),
+                r.isEven ? fiberPaint1 : fiberPaint2,
+              );
+            }
+
+            // Plush Ribbed Elastic Piping Trim (Top & Bottom Borders)
+            final trimPaint = Paint()
+              ..color = const Color(0xFF0F1319)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3.2;
             canvas.drawLine(
-              Offset((p1Top.x + p1Btm.x) / 2, (p1Top.y + p1Btm.y) / 2),
-              Offset((p2Top.x + p2Btm.x) / 2, (p2Top.y + p2Btm.y) / 2),
-              threadPaint,
-            );
+                Offset(p1Top.x, p1Top.y), Offset(p2Top.x, p2Top.y), trimPaint);
+            canvas.drawLine(
+                Offset(p1Btm.x, p1Btm.y), Offset(p2Btm.x, p2Btm.y), trimPaint);
 
-            // Reinforced ribbed top and bottom border trims (Piping hems)
-            final borderPaint = Paint()
-              ..color = const Color(0xFF1E293B)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0;
-
-            canvas.drawLine(Offset(p1Top.x, p1Top.y), Offset(p2Top.x, p2Top.y), borderPaint);
-            canvas.drawLine(Offset(p1Btm.x, p1Btm.y), Offset(p2Btm.x, p2Btm.y), borderPaint);
+            // Double-stitched lockstitch seam thread along top & bottom hem
+            if (i.isEven) {
+              final stitchPaint = Paint()
+                ..color = const Color(0xFF64748B).withValues(alpha: 0.55)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.0;
+              final sTop1 = Offset(
+                p1Top.x + (p1Btm.x - p1Top.x) * 0.08,
+                p1Top.y + (p1Btm.y - p1Top.y) * 0.08,
+              );
+              final sTop2 = Offset(
+                p2Top.x + (p2Btm.x - p2Top.x) * 0.08,
+                p2Top.y + (p2Btm.y - p2Top.y) * 0.08,
+              );
+              final sBtm1 = Offset(
+                p1Top.x + (p1Btm.x - p1Top.x) * 0.92,
+                p1Top.y + (p1Btm.y - p1Top.y) * 0.92,
+              );
+              final sBtm2 = Offset(
+                p2Top.x + (p2Btm.x - p2Top.x) * 0.92,
+                p2Top.y + (p2Btm.y - p2Top.y) * 0.92,
+              );
+              canvas.drawLine(sTop1, sTop2, stitchPaint);
+              canvas.drawLine(sBtm1, sBtm2, stitchPaint);
+            }
           },
         ),
       );
     }
   }
 
-  // 2. Sleeve Integrated Docking Bezel
+  // ===========================================================================
+  // 2. SLEEVE CRADLE WITH INNER SKIN-CONTACT SENSOR CUTOUT (| : | GREEN LEDS)
+  // ===========================================================================
   void _generateSleeveDock(List<_DrawCommand> list, double ox, double oy) {
     const dockZ = 70.0;
     final center = _project(0, 0, dockZ, ox, oy);
@@ -942,132 +1200,460 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
           final s = center.scale;
           final outerRect = Rect.fromCenter(
             center: Offset(center.x, center.y),
-            width: 86 * s,
-            height: 56 * s,
+            width: 68 * s,
+            height: 76 * s,
           );
 
-          // Outer molded black dock frame
+          // Molded matte black sleeve pocket bezel
           canvas.drawRRect(
             RRect.fromRectAndRadius(outerRect, Radius.circular(22 * s)),
-            Paint()..color = const Color(0xFF141922),
+            Paint()..color = const Color(0xFF131720),
           );
           canvas.drawRRect(
             RRect.fromRectAndRadius(outerRect, Radius.circular(22 * s)),
             Paint()
               ..color = const Color(0xFF334155)
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.8 * s,
+              ..strokeWidth = 1.6 * s,
           );
 
-          // Open inner window through which sensors touch the skin
+          // Inner optical window cutout (shows | : | green LEDs sitting against skin)
           final innerRect = Rect.fromCenter(
             center: Offset(center.x, center.y),
-            width: 68 * s,
-            height: 40 * s,
+            width: 44 * s,
+            height: 32 * s,
           );
           canvas.drawRRect(
-            RRect.fromRectAndRadius(innerRect, Radius.circular(16 * s)),
-            Paint()..color = const Color(0xFF070A0F),
+            RRect.fromRectAndRadius(innerRect, Radius.circular(10 * s)),
+            Paint()..color = const Color(0xFF050807),
+          );
+
+          // Poster "| : |" green optical bars inside cradle cutout
+          final greenGlow = Paint()
+            ..color = const Color(0xFF10B981).withValues(alpha: 0.4 + pulse * 0.4)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+          canvas.drawCircle(Offset(center.x, center.y), 14 * s, greenGlow);
+
+          final barPaint = Paint()..color = const Color(0xFF00FF66);
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(center.x - 10 * s, center.y),
+                  width: 3 * s,
+                  height: 14 * s),
+              Radius.circular(1.5 * s),
+            ),
+            barPaint,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(center.x + 10 * s, center.y),
+                  width: 3 * s,
+                  height: 14 * s),
+              Radius.circular(1.5 * s),
+            ),
+            barPaint,
+          );
+          canvas.drawCircle(
+              Offset(center.x, center.y - 3.5 * s), 1.8 * s, barPaint);
+          canvas.drawCircle(
+              Offset(center.x, center.y + 3.5 * s), 1.8 * s, barPaint);
+        },
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 3. REMOVABLE POD & 5-LAYER EXPLODED "WHAT'S INSIDE THE POD" CAD STACK
+  // ===========================================================================
+  void _generatePodAndLayers(
+      List<_DrawCommand> list, double ox, double oy, double oz) {
+    final exp = explode;
+    final podCenter = _project(0, 0, oz, ox, oy);
+    final cosView = math.cos(rotY + podFlip * math.pi);
+    final isBackVisible = cosView < 0 || podFlip > 0.5;
+
+    if (exp < 0.05) {
+      // ASSEMBLED POD (Vertical Rounded-Squircle Pebble matching Poster)
+      list.add(
+        _DrawCommand(
+          depth: podCenter.z - 6.0,
+          draw: (canvas) {
+            _drawAssembledPod(canvas, podCenter, isBackVisible);
+          },
+        ),
+      );
+    } else {
+      // =======================================================================
+      // 5 EXPLODED 3D PERSPECTIVE HARDWARE LAYERS (Matching "What's Inside the Pod")
+      // =======================================================================
+      final spread = 34.0 * exp;
+
+      // Layer 1 (Top): Water-resistant casing
+      _addExplodedSlab(
+        list: list,
+        layerIdx: 0,
+        yCenter: -2.0 * spread,
+        width: 66,
+        depth: 74,
+        thickness: 9,
+        ox: ox,
+        oy: oy,
+        oz: oz,
+        topColor: const Color(0xFF1C212B),
+        sideColor: const Color(0xFF0F131A),
+        borderColor: const Color(0xFF38BDF8),
+        label: 'Water-resistant casing',
+        subLabel: 'Splash & sweat-proof shell',
+        drawDetails: (canvas, c, s) {
+          _drawHeartEcgAndBar(canvas, c.x, c.y, s * 0.85);
+        },
+      );
+
+      // Layer 2: GPS module & Cellular (LTE) / Wi-Fi antenna
+      _addExplodedSlab(
+        list: list,
+        layerIdx: 1,
+        yCenter: -1.0 * spread,
+        width: 58,
+        depth: 64,
+        thickness: 5,
+        ox: ox,
+        oy: oy,
+        oz: oz,
+        topColor: const Color(0xFF065F46),
+        sideColor: const Color(0xFF064E3B),
+        borderColor: const Color(0xFFF59E0B),
+        label: 'GPS module & LTE/Wi-Fi antenna',
+        subLabel: 'Location, speed & auto-fallback',
+        drawDetails: (canvas, c, s) {
+          // Tan/Gold Ceramic GPS Patch Block
+          final patchRect = Rect.fromCenter(
+            center: Offset(c.x - 8 * s, c.y - 2 * s),
+            width: 18 * s,
+            height: 15 * s,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(patchRect, Radius.circular(3 * s)),
+            Paint()..color = const Color(0xFFD97706),
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+                patchRect.deflate(2.5 * s), Radius.circular(2 * s)),
+            Paint()..color = const Color(0xFFFEF08A),
+          );
+          // Gold LTE/Wi-Fi antenna trace
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(c.x + 12 * s, c.y),
+                  width: 12 * s,
+                  height: 18 * s),
+              Radius.circular(2 * s),
+            ),
+            Paint()
+              ..color = const Color(0xFFFBBF24)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6 * s,
+          );
+        },
+      );
+
+      // Layer 3: Main PCB (controller)
+      _addExplodedSlab(
+        list: list,
+        layerIdx: 2,
+        yCenter: 0.0,
+        width: 60,
+        depth: 66,
+        thickness: 5,
+        ox: ox,
+        oy: oy,
+        oz: oz,
+        topColor: const Color(0xFF047857),
+        sideColor: const Color(0xFF065F46),
+        borderColor: const Color(0xFF10B981),
+        label: 'Main PCB (controller)',
+        subLabel: 'ESP32 MCU & copper traces',
+        drawDetails: (canvas, c, s) {
+          // Silver RF Shield Can
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(c.x - 6 * s, c.y),
+                  width: 20 * s,
+                  height: 14 * s),
+              Radius.circular(3 * s),
+            ),
+            Paint()..color = const Color(0xFF94A3B8),
+          );
+          // Silicon MCU Die
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(c.x + 12 * s, c.y + 2 * s),
+                  width: 12 * s,
+                  height: 12 * s),
+              Radius.circular(2 * s),
+            ),
+            Paint()..color = const Color(0xFF1E293B),
+          );
+        },
+      );
+
+      // Layer 4: Battery (1000mAh LiPo)
+      _addExplodedSlab(
+        list: list,
+        layerIdx: 3,
+        yCenter: 1.0 * spread,
+        width: 52,
+        depth: 58,
+        thickness: 9,
+        ox: ox,
+        oy: oy,
+        oz: oz,
+        topColor: const Color(0xFFEAB308),
+        sideColor: const Color(0xFFCA8A04),
+        borderColor: const Color(0xFFFACC15),
+        label: 'Battery (1000mAh LiPo)',
+        subLabel: 'Rechargeable gold pouch cell',
+        drawDetails: (canvas, c, s) {
+          // Dark protection terminal strip on left end of battery
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                  center: Offset(c.x - 14 * s, c.y),
+                  width: 8 * s,
+                  height: 16 * s),
+              Radius.circular(2 * s),
+            ),
+            Paint()..color = const Color(0xFF1E293B),
+          );
+        },
+      );
+
+      // Layer 5 (Bottom): Sensors (HR, SpO2, Temperature, Motion)
+      _addExplodedSlab(
+        list: list,
+        layerIdx: 4,
+        yCenter: 2.0 * spread,
+        width: 66,
+        depth: 74,
+        thickness: 8,
+        ox: ox,
+        oy: oy,
+        oz: oz,
+        topColor: const Color(0xFF111827),
+        sideColor: const Color(0xFF090D16),
+        borderColor: const Color(0xFF34D399),
+        label: 'Sensors (HR, SpO₂, Temp, Motion)',
+        subLabel: 'Direct skin optical array (| : |)',
+        drawDetails: (canvas, c, s) {
+          // Glowing green optical sensor array
+          final glow = Paint()
+            ..color =
+                const Color(0xFF10B981).withValues(alpha: 0.5 + pulse * 0.4)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+          canvas.drawCircle(Offset(c.x, c.y), 12 * s, glow);
+          final ledPaint = Paint()..color = const Color(0xFF00FF66);
+          canvas.drawCircle(Offset(c.x - 6 * s, c.y), 2.5 * s, ledPaint);
+          canvas.drawCircle(Offset(c.x + 6 * s, c.y), 2.5 * s, ledPaint);
+        },
+      );
+    }
+  }
+
+  // Project and draw a 3D perspective slab for the exploded stack
+  void _addExplodedSlab({
+    required List<_DrawCommand> list,
+    required int layerIdx,
+    required double yCenter,
+    required double width,
+    required double depth,
+    required double thickness,
+    required double ox,
+    required double oy,
+    required double oz,
+    required Color topColor,
+    required Color sideColor,
+    required Color borderColor,
+    required String label,
+    required String subLabel,
+    required void Function(Canvas canvas, _Pt3 center, double scale) drawDetails,
+  }) {
+    final cPt = _project(0, yCenter, oz, ox, oy);
+    final rightEdgePt = _project(width * 0.55, yCenter, oz, ox, oy);
+
+    final isHighlighted = selectedLayer == layerIdx;
+    final isDimmed = selectedLayer != -1 && !isHighlighted;
+    final alpha = isDimmed ? 0.35 : 1.0;
+
+    list.add(
+      _DrawCommand(
+        depth: cPt.z + yCenter * 0.05,
+        draw: (canvas) {
+          final s = cPt.scale;
+          final w = width * s;
+          final h = (depth * 0.48) * s;
+          final thick = thickness * s;
+
+          // 3D Extruded Side Thickness
+          final sideRect = Rect.fromCenter(
+            center: Offset(cPt.x, cPt.y + thick * 0.55),
+            width: w,
+            height: h,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(sideRect, Radius.circular(14 * s)),
+            Paint()..color = sideColor.withValues(alpha: alpha),
+          );
+
+          // Top Face of 3D Layer
+          final topRect = Rect.fromCenter(
+            center: Offset(cPt.x, cPt.y),
+            width: w,
+            height: h,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(topRect, Radius.circular(14 * s)),
+            Paint()..color = topColor.withValues(alpha: alpha),
+          );
+
+          // Highlight Halo if Selected
+          if (isHighlighted) {
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(topRect.inflate(3 * s), Radius.circular(16 * s)),
+              Paint()
+                ..color = borderColor.withValues(alpha: 0.45 + pulse * 0.35)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+            );
+          }
+
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(topRect, Radius.circular(14 * s)),
+            Paint()
+              ..color = borderColor.withValues(
+                  alpha: isHighlighted ? 1.0 : 0.7 * alpha)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = (isHighlighted ? 2.4 : 1.3) * s,
+          );
+
+          if (!isDimmed) {
+            drawDetails(canvas, cPt, s);
+          }
+
+          // Draw Poster-Style Right Callout Leader Line & Badge
+          _drawExplodedCallout(
+            canvas: canvas,
+            anchor: rightEdgePt,
+            label: label,
+            subLabel: subLabel,
+            color: borderColor,
+            alpha: alpha,
+            isHighlighted: isHighlighted,
           );
         },
       ),
     );
   }
 
-  // 3. Removable Pod & Exploded Internal Layers
-  void _generatePodAndLayers(
-      List<_DrawCommand> list, double ox, double oy, double oz) {
-    final exp = explode;
-    final podCenter = _project(0, 0, oz, ox, oy);
+  void _drawExplodedCallout({
+    required Canvas canvas,
+    required _Pt3 anchor,
+    required String label,
+    required String subLabel,
+    required Color color,
+    required double alpha,
+    required bool isHighlighted,
+  }) {
+    final s = anchor.scale;
+    final startX = anchor.x;
+    final startY = anchor.y;
+    final endX = startX + 26 * s;
 
-    final cosView = math.cos(rotY + podFlip * math.pi);
-    final isBackVisible = cosView < 0 || podFlip > 0.5;
+    // Glowing anchor dot
+    canvas.drawCircle(
+      Offset(startX, startY),
+      3.0 * s,
+      Paint()..color = color.withValues(alpha: alpha),
+    );
 
-    if (exp < 0.05) {
-      // ASSEMBLED POD
-      list.add(
-        _DrawCommand(
-          depth: podCenter.z - 6.0,
-          draw: (canvas) {
-            _drawPodMesh(canvas, podCenter, isBackVisible);
-          },
-        ),
-      );
-    } else {
-      // WHAT'S INSIDE THE POD (EXPLODED CAD LAYERS)
-      // Layer 1: Top Shell (with Heart-ECG icon and light bar)
-      final p1 = _project(0, -65 * exp, oz, ox, oy);
-      list.add(
-        _DrawCommand(
-          depth: p1.z - 12.0,
-          draw: (canvas) {
-            _drawPodShell(canvas, p1, '1. Water-Resistant Top Shell');
-          },
-        ),
-      );
+    // Horizontal leader line
+    canvas.drawLine(
+      Offset(startX, startY),
+      Offset(endX, startY),
+      Paint()
+        ..color = color.withValues(alpha: 0.75 * alpha)
+        ..strokeWidth = (isHighlighted ? 1.8 : 1.2) * s,
+    );
 
-      // Layer 2: GPS Module & LTE/Wi-Fi Antenna
-      final p2 = _project(0, -32 * exp, oz, ox, oy);
-      list.add(
-        _DrawCommand(
-          depth: p2.z - 8.0,
-          draw: (canvas) {
-            _drawGpsAntennaLayer(canvas, p2);
-          },
+    final titleSpan = TextSpan(
+      text: '$label\n',
+      style: TextStyle(
+        color: (isStudioLight ? const Color(0xFF0F172A) : Colors.white)
+            .withValues(alpha: alpha),
+        fontSize: (isHighlighted ? 10.5 : 9.5) * s,
+        fontWeight: FontWeight.bold,
+        height: 1.15,
+      ),
+      children: [
+        TextSpan(
+          text: subLabel,
+          style: TextStyle(
+            color: color.withValues(alpha: 0.9 * alpha),
+            fontSize: 8.2 * s,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      );
+      ],
+    );
 
-      // Layer 3: Main Controller PCB (ESP32)
-      final p3 = _project(0, 0, oz, ox, oy);
-      list.add(
-        _DrawCommand(
-          depth: p3.z - 4.0,
-          draw: (canvas) {
-            _drawMainPcbLayer(canvas, p3);
-          },
-        ),
-      );
+    final tp = TextPainter(
+      text: titleSpan,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 155 * s);
 
-      // Layer 4: 1000mAh Battery Pouch
-      final p4 = _project(0, 32 * exp, oz, ox, oy);
-      list.add(
-        _DrawCommand(
-          depth: p4.z,
-          draw: (canvas) {
-            _drawBatteryLayer(canvas, p4);
-          },
-        ),
-      );
+    final pillRect = Rect.fromLTWH(
+      endX + 4 * s,
+      startY - tp.height / 2 - 4 * s,
+      tp.width + 12 * s,
+      tp.height + 8 * s,
+    );
 
-      // Layer 5: Biosensor Bay & Optical Window (Green LEDs)
-      final p5 = _project(0, 65 * exp, oz, ox, oy);
-      list.add(
-        _DrawCommand(
-          depth: p5.z + 4.0,
-          draw: (canvas) {
-            _drawSensorLayer(canvas, p5);
-          },
-        ),
-      );
-    }
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(pillRect, Radius.circular(6 * s)),
+      Paint()
+        ..color = (isStudioLight
+                ? Colors.white.withValues(alpha: 0.92 * alpha)
+                : const Color(0xFF0F172A).withValues(alpha: 0.88 * alpha)),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(pillRect, Radius.circular(6 * s)),
+      Paint()
+        ..color = color.withValues(alpha: (isHighlighted ? 0.95 : 0.45) * alpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (isHighlighted ? 1.5 : 1.0) * s,
+    );
+
+    tp.paint(canvas, Offset(endX + 10 * s, startY - tp.height / 2));
   }
 
-  // Draw Assembled Pod with Heart-ECG Icon and Cyan Status LED Bar
-  void _drawPodMesh(Canvas canvas, _Pt3 center, bool isBackVisible) {
+  // Draw Assembled Pod (Vertical Rounded-Squircle Pebble matching Poster)
+  void _drawAssembledPod(Canvas canvas, _Pt3 center, bool isBackVisible) {
     final s = center.scale;
     final rect = Rect.fromCenter(
       center: Offset(center.x, center.y),
-      width: 76 * s,
-      height: 48 * s,
+      width: 64 * s,
+      height: 74 * s,
     );
 
-    // Matte black stadium pebble shell
+    // Matte black water-resistant pebble enclosure
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(24 * s)),
+      RRect.fromRectAndRadius(rect, Radius.circular(22 * s)),
       Paint()..color = const Color(0xFF161A22),
     );
 
-    // Specular highlight gradient across top curve
     final highlightPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
@@ -1075,210 +1661,150 @@ class UtanoUpperArmBand3dPainter extends CustomPainter {
         colors: [
           Colors.white.withValues(alpha: 0.22),
           Colors.transparent,
-          Colors.black.withValues(alpha: 0.4),
+          Colors.black.withValues(alpha: 0.45),
         ],
       ).createShader(rect);
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(24 * s)),
+      RRect.fromRectAndRadius(rect, Radius.circular(22 * s)),
       highlightPaint,
     );
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(24 * s)),
+      RRect.fromRectAndRadius(rect, Radius.circular(22 * s)),
       Paint()
-        ..color = const Color(0xFF334155).withValues(alpha: 0.7)
+        ..color = const Color(0xFF334155).withValues(alpha: 0.75)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6 * s,
     );
 
     if (!isBackVisible) {
-      // ======================================================================
-      // FRONT FACE: Heart + ECG Vital Wave Emblem + Horizontal Glowing Cyan Bar
-      // ======================================================================
-      final iconY = center.y - 4 * s;
-
-      // 1. HEART + ECG WAVE MONOGRAM (White/Cyan Glow)
-      final heartPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8 * s
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-
-      // Heart outline path
-      final heartPath = Path();
-      const hw = 9.0;
-      heartPath.moveTo(center.x, iconY + 5.5 * s);
-      heartPath.cubicTo(
-        center.x - hw * 1.3 * s, iconY - 3 * s,
-        center.x - hw * 0.8 * s, iconY - 9 * s,
-        center.x, iconY - 3.5 * s,
-      );
-      heartPath.cubicTo(
-        center.x + hw * 0.8 * s, iconY - 9 * s,
-        center.x + hw * 1.3 * s, iconY - 3 * s,
-        center.x, iconY + 5.5 * s,
-      );
-      canvas.drawPath(heartPath, heartPaint);
-
-      // ECG Pulse spike passing through heart
-      final ecgPath = Path()
-        ..moveTo(center.x - 12 * s, iconY + 0.5 * s)
-        ..lineTo(center.x - 4 * s, iconY + 0.5 * s)
-        ..lineTo(center.x - 2 * s, iconY - 4 * s)
-        ..lineTo(center.x + 1 * s, iconY + 4 * s)
-        ..lineTo(center.x + 3 * s, iconY - 1 * s)
-        ..lineTo(center.x + 5 * s, iconY + 0.5 * s)
-        ..lineTo(center.x + 12 * s, iconY + 0.5 * s);
-
-      final ecgPaint = Paint()
-        ..color = const Color(0xFF38BDF8)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6 * s
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      canvas.drawPath(ecgPath, ecgPaint);
-
-      // 2. HORIZONTAL GLOWING CYAN STATUS LED BAR (Below Heart Icon)
-      final barY = center.y + 13 * s;
-      final barW = 24 * s;
-      final barH = 3.5 * s;
-      final barRect = Rect.fromCenter(
-        center: Offset(center.x, barY),
-        width: barW,
-        height: barH,
-      );
-
-      final ledColor = isCritical
-          ? const Color(0xFFEF4444)
-          : const Color(0xFF38BDF8);
-
-      // Glow halo
-      final glowPaint = Paint()
-        ..color = ledColor.withValues(alpha: 0.6 + pulse * 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawRRect(RRect.fromRectAndRadius(barRect, Radius.circular(barH / 2)), glowPaint);
-
-      // Core bright light bar
-      final corePaint = Paint()..color = ledColor;
-      canvas.drawRRect(RRect.fromRectAndRadius(barRect, Radius.circular(barH / 2)), corePaint);
-
-      // White hot center
-      final centerBar = Rect.fromCenter(
-        center: Offset(center.x, barY),
-        width: barW * 0.5,
-        height: barH * 0.5,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(centerBar, Radius.circular(barH / 4)),
-        Paint()..color = Colors.white.withValues(alpha: 0.85),
-      );
+      _drawHeartEcgAndBar(canvas, center.x, center.y, s);
     } else {
-      // ======================================================================
-      // BACK FACE: Recessed Optical Sensor Cavity + Dual Green PPG LEDs
-      // ======================================================================
+      // BACK FACE: Skin-Contact Sensor Area (| : | Dual Green Optical Bars)
       final sensorRect = Rect.fromCenter(
         center: Offset(center.x, center.y),
-        width: 32 * s,
-        height: 22 * s,
+        width: 36 * s,
+        height: 26 * s,
       );
-
-      // Dark glass optical window
       canvas.drawRRect(
-        RRect.fromRectAndRadius(sensorRect, Radius.circular(4 * s)),
-        Paint()..color = const Color(0xFF06090D),
+        RRect.fromRectAndRadius(sensorRect, Radius.circular(6 * s)),
+        Paint()..color = const Color(0xFF050807),
       );
-
-      // DUAL BRIGHT GLOWING GREEN OPTICAL LEDs
-      final led1X = center.x - 6 * s;
-      final led2X = center.x + 6 * s;
-      final ledY = center.y;
 
       final greenGlow = Paint()
-        ..color = const Color(0xFF10B981).withValues(alpha: 0.45 + pulse * 0.45)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+        ..color = const Color(0xFF10B981).withValues(alpha: 0.5 + pulse * 0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
+      canvas.drawCircle(Offset(center.x, center.y), 14 * s, greenGlow);
 
-      canvas.drawCircle(Offset(led1X, ledY), 6 * s, greenGlow);
-      canvas.drawCircle(Offset(led2X, ledY), 6 * s, greenGlow);
-
-      // White-hot emitter die cores
-      final corePaint = Paint()..color = const Color(0xFFE6FFFA);
-      canvas.drawCircle(Offset(led1X, ledY), 2.2 * s, corePaint);
-      canvas.drawCircle(Offset(led2X, ledY), 2.2 * s, corePaint);
-
-      // Gold charging contact pads
-      final goldPadPaint = Paint()..color = const Color(0xFFFACC15);
-      canvas.drawCircle(Offset(center.x - 22 * s, center.y), 2.0 * s, goldPadPaint);
-      canvas.drawCircle(Offset(center.x + 22 * s, center.y), 2.0 * s, goldPadPaint);
+      final ledPaint = Paint()..color = const Color(0xFF00FF66);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset(center.x - 9 * s, center.y),
+              width: 3.2 * s,
+              height: 13 * s),
+          Radius.circular(1.5 * s),
+        ),
+        ledPaint,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+              center: Offset(center.x + 9 * s, center.y),
+              width: 3.2 * s,
+              height: 13 * s),
+          Radius.circular(1.5 * s),
+        ),
+        ledPaint,
+      );
+      canvas.drawCircle(
+          Offset(center.x, center.y - 3.5 * s), 1.8 * s, ledPaint);
+      canvas.drawCircle(
+          Offset(center.x, center.y + 3.5 * s), 1.8 * s, ledPaint);
     }
   }
 
-  // Exploded View Layers:
-  void _drawPodShell(Canvas canvas, _Pt3 p, String label) {
-    final s = p.scale;
-    final rect = Rect.fromCenter(center: Offset(p.x, p.y), width: 72 * s, height: 44 * s);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(22 * s)), Paint()..color = const Color(0xFF1E222A));
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(22 * s)), Paint()..color = const Color(0xFF38BDF8)..style = PaintingStyle.stroke..strokeWidth = 1.5 * s);
-    _drawLayerTag(canvas, p, label, const Color(0xFF38BDF8));
-  }
+  void _drawHeartEcgAndBar(Canvas canvas, double cx, double cy, double s) {
+    final iconY = cy - 6 * s;
 
-  void _drawGpsAntennaLayer(Canvas canvas, _Pt3 p) {
-    final s = p.scale;
-    final rect = Rect.fromCenter(center: Offset(p.x, p.y), width: 62 * s, height: 34 * s);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(8 * s)), Paint()..color = const Color(0xFFB45309));
-    // Ceramic GPS Patch
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(p.x - 14 * s, p.y), width: 16 * s, height: 16 * s), Radius.circular(3 * s)), Paint()..color = const Color(0xFFD97706));
-    _drawLayerTag(canvas, p, '2. GPS Module & LTE / Wi-Fi Antenna', const Color(0xFFF59E0B));
-  }
+    // 1. White Heart Outline
+    final heartPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8 * s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-  void _drawMainPcbLayer(Canvas canvas, _Pt3 p) {
-    final s = p.scale;
-    final rect = Rect.fromCenter(center: Offset(p.x, p.y), width: 64 * s, height: 36 * s);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(8 * s)), Paint()..color = const Color(0xFF047857));
-    // Metal ESP32 RF Shield Can
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(p.x, p.y), width: 26 * s, height: 20 * s), Radius.circular(4 * s)), Paint()..color = const Color(0xFF94A3B8));
-    _drawLayerTag(canvas, p, '3. Main Controller PCB (ESP32)', const Color(0xFF10B981));
-  }
+    const hw = 9.5;
+    final heartPath = Path()
+      ..moveTo(cx, iconY + 6 * s)
+      ..cubicTo(
+        cx - hw * 1.3 * s,
+        iconY - 3 * s,
+        cx - hw * 0.8 * s,
+        iconY - 9.5 * s,
+        cx,
+        iconY - 3.5 * s,
+      )
+      ..cubicTo(
+        cx + hw * 0.8 * s,
+        iconY - 9.5 * s,
+        cx + hw * 1.3 * s,
+        iconY - 3 * s,
+        cx,
+        iconY + 6 * s,
+      );
+    canvas.drawPath(heartPath, heartPaint);
 
-  void _drawBatteryLayer(Canvas canvas, _Pt3 p) {
-    final s = p.scale;
-    final rect = Rect.fromCenter(center: Offset(p.x, p.y), width: 56 * s, height: 30 * s);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(6 * s)), Paint()..color = const Color(0xFFCA8A04));
-    _drawLayerTag(canvas, p, '4. 1000mAh LiPo Battery Pouch', const Color(0xFFEAB308));
-  }
+    // 2. ECG Pulse Line Through Heart
+    final ecgPath = Path()
+      ..moveTo(cx - 12 * s, iconY + 0.5 * s)
+      ..lineTo(cx - 4 * s, iconY + 0.5 * s)
+      ..lineTo(cx - 2 * s, iconY - 4.2 * s)
+      ..lineTo(cx + 1 * s, iconY + 4.2 * s)
+      ..lineTo(cx + 3 * s, iconY - 1.2 * s)
+      ..lineTo(cx + 5 * s, iconY + 0.5 * s)
+      ..lineTo(cx + 12 * s, iconY + 0.5 * s);
 
-  void _drawSensorLayer(Canvas canvas, _Pt3 p) {
-    final s = p.scale;
-    final rect = Rect.fromCenter(center: Offset(p.x, p.y), width: 70 * s, height: 42 * s);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(20 * s)), Paint()..color = const Color(0xFF0F172A));
-    // Green LEDs
-    final gPaint = Paint()..color = const Color(0xFF10B981);
-    canvas.drawCircle(Offset(p.x - 6 * s, p.y), 3.5 * s, gPaint);
-    canvas.drawCircle(Offset(p.x + 6 * s, p.y), 3.5 * s, gPaint);
-    _drawLayerTag(canvas, p, '5. Optical Sensors (HR, SpO₂, Temp)', const Color(0xFF34D399));
-  }
-
-  void _drawLayerTag(Canvas canvas, _Pt3 p, String text, Color color) {
-    final s = p.scale;
-    final textSpan = TextSpan(
-      text: text,
-      style: TextStyle(color: color, fontSize: 10 * s, fontWeight: FontWeight.bold),
-    );
-    final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
-    textPainter.layout();
-
-    final tx = p.x + 46 * s;
-    final ty = p.y - 6 * s;
-
-    // Leader line
-    canvas.drawLine(
-      Offset(p.x + 36 * s, p.y),
-      Offset(tx - 4, ty + 7),
-      Paint()..color = color.withValues(alpha: 0.6)..strokeWidth = 1.0,
+    canvas.drawPath(
+      ecgPath,
+      Paint()
+        ..color = const Color(0xFF7DD3FC)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6 * s
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
 
-    textPainter.paint(canvas, Offset(tx, ty));
+    // 3. Horizontal Glowing Cyan LED Status Bar (Lower Center)
+    final barY = cy + 17 * s;
+    final barW = 22 * s;
+    final barH = 3.5 * s;
+    final barRect =
+        Rect.fromCenter(center: Offset(cx, barY), width: barW, height: barH);
+
+    final ledColor =
+        isCritical ? const Color(0xFFEF4444) : const Color(0xFF38BDF8);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(barRect, Radius.circular(barH / 2)),
+      Paint()
+        ..color = ledColor.withValues(alpha: 0.65 + pulse * 0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(barRect, Radius.circular(barH / 2)),
+      Paint()..color = ledColor,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(cx, barY), width: barW * 0.55, height: barH * 0.5),
+        Radius.circular(barH / 4),
+      ),
+      Paint()..color = Colors.white.withValues(alpha: 0.9),
+    );
   }
 
   @override
