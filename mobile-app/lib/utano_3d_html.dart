@@ -2,6 +2,7 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #070B14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -116,10 +117,33 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       margin-top: -5px;
     }
   </style>
+  <style>
+    html, body { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+    body { padding: 6px; }
+    #experience { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; gap: 8px; padding: 8px; overflow: hidden; }
+    #stage-wrap { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; overflow: hidden; }
+    #stage-wrap > canvas { display: block; width: 100%; height: 100%; }
+    #hud-overlay, #hotspots-layer { position: absolute; inset: 0; }
+    #hud-overlay { pointer-events: none; }
+    #hotspots-layer { pointer-events: none; overflow: hidden; }
+    #stage-mode-card { position: absolute; z-index: 4; top: 8px; left: 8px; width: min(210px, calc(100% - 132px)); }
+    #stage-telemetry { position: absolute; z-index: 4; top: 8px; right: 8px; max-width: 115px; }
+    #stage-pod-controls { position: absolute; z-index: 4; bottom: 8px; left: 8px; max-width: calc(100% - 16px); flex-wrap: wrap; }
+    #stage-actions { position: absolute; z-index: 4; right: 8px; bottom: 8px; }
+    @media (max-width: 480px) {
+      body { padding: 4px; }
+      #experience { gap: 6px; padding: 6px; }
+      #stage-mode-card { top: 6px; left: 6px; padding: 6px; }
+      #stage-telemetry { top: 6px; right: 6px; padding: 6px; }
+      #stage-mode-card #mode-desc { display: none; }
+      #stage-pod-controls { right: 8px; bottom: 42px; }
+      #stage-actions { right: 8px; bottom: 8px; }
+    }
+  </style>
 </head>
 <body class="bg-transparent text-[var(--foreground)] antialiased p-1 sm:p-2">
 
-  <div class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl p-3.5 shadow-2xl overflow-hidden flex flex-col gap-2.5">
+  <div id="experience" class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl p-3.5 shadow-2xl overflow-hidden flex flex-col gap-2.5">
     
     <!-- Top Bar: Brand + Guided Onboarding Wizard Steps -->
     <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[var(--border)]">
@@ -160,7 +184,7 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       <div id="hotspots-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
 
       <!-- Top-Left Interactive Step / Context Card -->
-      <div class="absolute top-2 left-2 bg-slate-900/92 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 max-w-[210px] sm:max-w-[245px] shadow-xl pointer-events-auto">
+      <div id="stage-mode-card" class="absolute top-2 left-2 bg-slate-900/92 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 max-w-[210px] sm:max-w-[245px] shadow-xl pointer-events-auto">
         <div class="flex items-center justify-between gap-1.5">
           <div id="mode-title" class="text-[11px] sm:text-xs font-bold text-cyan-300 flex items-center gap-1 truncate">
             <span>🔍</span> <span>What's Inside Pod</span>
@@ -180,7 +204,7 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       </div>
 
       <!-- Top-Right Live Biometric & Connectivity Telemetry HUD -->
-      <div class="absolute top-2 right-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 flex flex-col gap-0.5 pointer-events-none shadow-lg text-[10px]">
+      <div id="stage-telemetry" class="absolute top-2 right-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 flex flex-col gap-0.5 pointer-events-none shadow-lg text-[10px]">
         <div class="flex items-center justify-between gap-2">
           <span class="text-slate-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> HR</span>
           <span id="hud-hr" class="font-mono font-bold text-emerald-400">72 BPM</span>
@@ -196,7 +220,7 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       </div>
 
       <!-- Bottom-Left Tactile Explode & Peel Scrubber -->
-      <div class="absolute bottom-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/90 text-slate-200 text-xs px-3 py-1.5 rounded-xl flex items-center gap-2.5 shadow-lg">
+      <div id="stage-pod-controls" class="absolute bottom-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/90 text-slate-200 text-xs px-3 py-1.5 rounded-xl flex items-center gap-2.5 shadow-lg">
         <button onclick="toggleDock()" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-semibold text-cyan-300 transition-all" id="quick-dock-btn">
           ⇄ Pop Pod Out
         </button>
@@ -209,7 +233,7 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       </div>
 
       <!-- Bottom-Right Interactive Hint / Layer Reset -->
-      <div class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+      <div id="stage-actions" class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
         <button id="btn-reset-layer" onclick="selectLayer(-1)" class="hidden bg-amber-950/90 backdrop-blur-md border border-amber-500/60 hover:border-amber-400 text-[11px] font-semibold text-amber-300 px-2.5 py-1.5 rounded-xl transition-all shadow-lg">
           ↺ Show All 5 Layers
         </button>
@@ -259,6 +283,10 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
     }
     window.addEventListener('resize', resize);
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(resize).observe(canvas.parentElement);
+    }
+    resize();
 
     // =========================================================================
     // UX STATE & INTERACTIVE SIMULATIONS
@@ -1271,7 +1299,9 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       mat4Persp(pMat, (38 * Math.PI) / 180, width / height, 0.1, 100.0);
       gl.uniformMatrix4fv(uProjLoc, false, pMat);
 
-      const eye = [0, 0.2, 7.2 / zoom];
+      const aspect = width / height;
+      const fitZoom = Math.min(1, Math.max(0.7, aspect / 1.6));
+      const eye = [0, 0.2, 7.2 / (zoom * fitZoom)];
       mat4Look(vMat, eye, [0, 0, 0], [0, 1, 0]);
       gl.uniformMatrix4fv(uViewLoc, false, vMat);
       gl.uniform3fv(uCamPosLoc, eye);

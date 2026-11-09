@@ -155,6 +155,11 @@ class _Band3dScreenState extends State<Band3dScreen> {
     final cardBg = isDark ? const Color(0xFF101726) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subColor = isDark ? Colors.white70 : const Color(0xFF475569);
+    final screenSize = MediaQuery.sizeOf(context);
+    final isLargeDevice = screenSize.shortestSide >= 600;
+    final stageHeight = (screenSize.height * 0.5)
+      .clamp(isLargeDevice ? 360.0 : 320.0, isLargeDevice ? 560.0 : 460.0)
+      .toDouble();
 
     return ListenableBuilder(
       listenable: TelemetryService.instance,
@@ -263,7 +268,7 @@ class _Band3dScreenState extends State<Band3dScreen> {
               children: [
                 // 3D Viewport Stage Card (Running True Hardware WebGL GPU Engine!)
                 Container(
-                  height: 440,
+                  height: stageHeight,
                   decoration: BoxDecoration(
                     color: const Color(0xFF04070E),
                     borderRadius: BorderRadius.circular(24),
