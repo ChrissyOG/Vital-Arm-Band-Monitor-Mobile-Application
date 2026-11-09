@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'ai_assistant_screen.dart';
 import 'animation_widgets.dart';
 import 'app_theme.dart';
+import 'band_3d_screen.dart';
 import 'mqtt_service.dart';
 import 'telemetry_service.dart';
 import 'user_profile.dart';
@@ -52,44 +53,46 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final role = widget.profile.role;
     final names = role.monitorsSomeone
-        ? const ['Overview', 'AI Assistant', 'History', 'Location', 'Alerts']
-        : const ['Overview', 'AI Assistant', 'Activity', 'History', 'Alerts'];
+        ? const ['Overview', '3D Band', 'AI Assistant', 'History', 'Alerts']
+        : const ['Overview', '3D Band', 'AI Assistant', 'Activity', 'Alerts'];
     final pages = role.monitorsSomeone
         ? <Widget>[
             OverviewScreen(
               profile: widget.profile,
               onSignOut: widget.onSignOut,
-              onOpenAiChat: () => setState(() => _index = 1),
+              onOpenAiChat: () => setState(() => _index = 2),
+              onOpen3dBand: () => setState(() => _index = 1),
             ),
+            Band3dScreen(profile: widget.profile),
             AiAssistantScreen(profile: widget.profile),
             HistoryScreen(name: widget.profile.monitoredName),
-            LocationScreen(name: widget.profile.monitoredName),
             AlertsScreen(name: widget.profile.monitoredName),
           ]
         : <Widget>[
             OverviewScreen(
               profile: widget.profile,
               onSignOut: widget.onSignOut,
-              onOpenAiChat: () => setState(() => _index = 1),
+              onOpenAiChat: () => setState(() => _index = 2),
+              onOpen3dBand: () => setState(() => _index = 1),
             ),
+            Band3dScreen(profile: widget.profile),
             AiAssistantScreen(profile: widget.profile),
             ActivityScreen(name: widget.profile.name),
-            HistoryScreen(name: widget.profile.name),
             AlertsScreen(name: widget.profile.name),
           ];
     final icons = role.monitorsSomeone
         ? const [
             Icons.grid_view_rounded,
+            Icons.view_in_ar_rounded,
             Icons.auto_awesome_rounded,
             Icons.show_chart_rounded,
-            Icons.location_on_outlined,
             Icons.notifications_none_rounded,
           ]
         : const [
             Icons.grid_view_rounded,
+            Icons.view_in_ar_rounded,
             Icons.auto_awesome_rounded,
             Icons.directions_run_rounded,
-            Icons.show_chart_rounded,
             Icons.notifications_none_rounded,
           ];
 
@@ -118,12 +121,14 @@ class OverviewScreen extends StatelessWidget {
     required this.profile,
     this.onSignOut,
     this.onOpenAiChat,
+    this.onOpen3dBand,
     super.key,
   });
 
   final UserProfile profile;
   final VoidCallback? onSignOut;
   final VoidCallback? onOpenAiChat;
+  final VoidCallback? onOpen3dBand;
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +156,12 @@ class OverviewScreen extends StatelessWidget {
             DeviceStatusBanner(
               name: subject,
               isCritical: snapshot.isCritical,
+              battery: snapshot.batteryPercentage,
+              onTap: onOpen3dBand,
+            ),
+            const SizedBox(height: 14),
+            Utano3dHardwareCard(
+              onOpen3d: onOpen3dBand,
               battery: snapshot.batteryPercentage,
             ),
             const SizedBox(height: 14),
@@ -593,70 +604,257 @@ class DeviceStatusBanner extends StatelessWidget {
     required this.name,
     this.isCritical = false,
     this.battery = 88,
+    this.onTap,
     super.key,
   });
 
   final String name;
   final bool isCritical;
   final int battery;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(15),
-    decoration: BoxDecoration(
-      color: isCritical ? const Color(0xFF9E2A2B) : forest,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: (isCritical ? coral : forest).withValues(alpha: 0.25),
-          blurRadius: 10,
-          offset: const Offset(0, 3),
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(14),
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(16),
+    child: Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: isCritical ? const Color(0xFF9E2A2B) : forest,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (isCritical ? coral : forest).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          child: Icon(
-            isCritical ? Icons.emergency_rounded : Icons.watch_rounded,
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              isCritical ? Icons.emergency_rounded : Icons.watch_rounded,
+              color: isCritical ? Colors.white : lime,
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.view_in_ar_rounded, size: 10, color: Colors.white),
+                          SizedBox(width: 3),
+                          Text('3D', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Utano Band AU-001  ·  HiveMQ MQTT · Batt $battery%',
+                  style: const TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          LiveRadarDot(
             color: isCritical ? Colors.white : lime,
-            size: 25,
+            label: isCritical ? 'ALERT' : 'LIVE',
           ),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+    ),
+  );
+}
+
+class Utano3dHardwareCard extends StatelessWidget {
+  const Utano3dHardwareCard({
+    required this.onOpen3d,
+    this.battery = 94,
+    super.key,
+  });
+
+  final VoidCallback? onOpen3d;
+  final int battery;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1424),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: forest.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: forest.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: forest.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(
+                  Icons.view_in_ar_rounded,
+                  color: forest,
+                  size: 20,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Utano Band AU-001  ·  HiveMQ MQTT · Batt $battery%',
-                style: const TextStyle(color: Color(0xFFD3E5D8), fontSize: 11),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Interactive 3D Hardware Model',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'Removable Pod • Washable Fabric Band',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: forest.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: forest.withValues(alpha: 0.4)),
+                ),
+                child: const Text(
+                  '360° ORBIT',
+                  style: TextStyle(
+                    color: forest,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-        LiveRadarDot(
-          color: isCritical ? Colors.white : lime,
-          label: isCritical ? 'ALERT' : 'LIVE',
-        ),
-      ],
-    ),
-  );
+          const SizedBox(height: 12),
+          const Text(
+            'Explore the 3D wearable: spin the band, pop the pod out for washing, view the dual green PPG optical sensors, or inspect the 3-pin snap cradle.',
+            style: TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sensors_rounded, color: forest, size: 12),
+                    SizedBox(width: 4),
+                    Text(
+                      'Dual Green LEDs',
+                      style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.power_settings_new_rounded, color: Color(0xFF38BDF8), size: 12),
+                    SizedBox(width: 4),
+                    Text(
+                      'Power Key ⏻',
+                      style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              ElevatedButton.icon(
+                onPressed: onOpen3d,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: forest,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                label: const Text(
+                  'Launch 3D',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class VitalCard extends StatelessWidget {
