@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -84,12 +86,44 @@ class _Band3dScreenState extends State<Band3dScreen> {
     _webViewController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF04070E))
+      ..addJavaScriptChannel(
+        'FlutterBridge',
+        onMessageReceived: (JavaScriptMessage msg) {
+          try {
+            final data = jsonDecode(msg.message) as Map<String, dynamic>;
+            final action = data['action'] as String?;
+            if (action == 'preset') {
+              final mode = data['mode'] as String?;
+              BandViewMode? targetMode;
+              if (mode == 'docked') targetMode = BandViewMode.worn;
+              if (mode == 'split') targetMode = BandViewMode.split;
+              if (mode == 'sensors') targetMode = BandViewMode.sensors;
+              if (mode == 'inside') targetMode = BandViewMode.exploded;
+              if (targetMode != null && mounted) {
+                setState(() {
+                  _viewMode = targetMode!;
+                  if (targetMode != BandViewMode.exploded) {
+                    _selectedLayerIndex = -1;
+                  }
+                });
+              }
+            } else if (action == 'layer') {
+              final idx = data['index'] as int?;
+              if (idx != null && mounted) {
+                setState(() {
+                  _selectedLayerIndex = idx;
+                  _viewMode = BandViewMode.exploded;
+                });
+              }
+            }
+          } catch (_) {}
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
             if (mounted) {
               setState(() => _isWebViewReady = true);
-              // Set initial preset to exploded CAD inside
               _webViewController.runJavaScript("if (window.setPreset) window.setPreset('inside');");
             }
           },
@@ -156,9 +190,9 @@ class _Band3dScreenState extends State<Band3dScreen> {
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subColor = isDark ? Colors.white70 : const Color(0xFF475569);
     final screenSize = MediaQuery.sizeOf(context);
-    final isLargeDevice = screenSize.shortestSide >= 600;
-    final stageHeight = (screenSize.height * 0.5)
-      .clamp(isLargeDevice ? 360.0 : 320.0, isLargeDevice ? 560.0 : 460.0)
+    final isTablet = screenSize.shortestSide >= 600;
+    final stageHeight = (screenSize.height * (isTablet ? 0.48 : 0.42))
+      .clamp(isTablet ? 380.0 : 280.0, isTablet ? 580.0 : 400.0)
       .toDouble();
 
     return ListenableBuilder(

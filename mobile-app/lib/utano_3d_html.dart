@@ -2,85 +2,131 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #070B14; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    .flex { display: flex; }
-    .flex-col { flex-direction: column; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
-    .justify-center { justify-content: center; }
-    .gap-1 { gap: 0.25rem; }
-    .gap-1\.5 { gap: 0.375rem; }
-    .gap-2 { gap: 0.5rem; }
-    .gap-2\.5 { gap: 0.625rem; }
-    .gap-3 { gap: 0.75rem; }
-    .relative { position: relative; }
-    .absolute { position: absolute; }
-    .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
-    .w-full { width: 100%; }
-    .h-full { height: 100%; }
-    .block { display: block; }
-    .hidden { display: none; }
-    .pointer-events-none { pointer-events: none; }
-    .pointer-events-auto { pointer-events: auto; }
-    .rounded-lg { border-radius: 0.5rem; }
-    .rounded-xl { border-radius: 0.75rem; }
-    .rounded-2xl { border-radius: 1rem; }
-    .rounded-full { border-radius: 9999px; }
-    .border { border-width: 1px; border-style: solid; }
-    .border-slate-700 { border-color: #334155; }
-    .border-slate-800 { border-color: #1e293b; }
-    .bg-slate-900 { background-color: #0f172a; }
-    .bg-slate-800 { background-color: #1e293b; }
-    .text-white { color: #ffffff; }
-    .text-slate-200 { color: #e2e8f0; }
-    .text-slate-300 { color: #cbd5e1; }
-    .text-slate-400 { color: #94a3b8; }
-    .text-cyan-300 { color: #67e8f9; }
-    .text-cyan-400 { color: #22d3ee; }
-    .text-emerald-400 { color: #34d399; }
-    .text-amber-300 { color: #fcd34d; }
-    .font-bold { font-weight: 700; }
-    .font-semibold { font-weight: 600; }
-    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4); }
-    .backdrop-blur-md { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-    .grid { display: grid; }
-    .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    @media (min-width: 640px) {
-      .sm\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    }
-</style>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #070B14;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       user-select: none;
       -webkit-user-select: none;
+      touch-action: none;
     }
-    .cam-pill {
-      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    #stage-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
     }
-    .cam-pill.active {
-      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-      color: #ffffff;
-      border-color: #38bdf8;
+    #mini-gl {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #hud-overlay, #hotspots-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    #hotspots-layer {
+      overflow: hidden;
+    }
+
+    /* Minimal, Sleek Smart-Device Glass Pills */
+    .glass-pill {
+      background: rgba(11, 16, 29, 0.80);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 9999px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #e2e8f0;
+      font-size: 11px;
       font-weight: 600;
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
-      transform: translateY(-1px);
+      padding: 5px 12px;
+      line-height: 1;
+      pointer-events: none;
+      white-space: nowrap;
     }
+
+    #stage-mode-pill {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+    }
+
+    #stage-status-pill {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      border-color: rgba(16, 185, 129, 0.35);
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+    }
+
+    /* Center-Bottom Peel Slider (Only active in Mode 4) */
+    #stage-peel-pill {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 15;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(11, 16, 29, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+    }
+
+    #stage-actions {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      z-index: 15;
+    }
+
     .hotspot-btn {
       position: absolute;
       transform: translate(-50%, -50%);
-      transition: transform 0.18s ease, opacity 0.2s ease, background-color 0.2s ease;
+      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
       cursor: pointer;
       z-index: 20;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-width: 1px;
+      border-style: solid;
+      pointer-events: auto;
+      white-space: nowrap;
     }
-    .hotspot-btn:hover {
-      transform: translate(-50%, -50%) scale(1.12);
-      z-index: 30;
+    .hotspot-btn:active {
+      transform: translate(-50%, -50%) scale(0.94);
     }
+
     @keyframes pulseRing {
       0% { transform: scale(0.9); opacity: 0.85; }
       70% { transform: scale(1.75); opacity: 0; }
@@ -89,177 +135,75 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
     .ring-anim::before {
       content: '';
       position: absolute;
-      inset: -4px;
+      inset: -3px;
       border-radius: 9999px;
-      border: 2px solid currentColor;
+      border: 1.5px solid currentColor;
       animation: pulseRing 2s infinite;
     }
+
+    /* Tactile Slider */
     input[type=range].v-slider {
       -webkit-appearance: none;
       appearance: none;
       background: transparent;
       cursor: pointer;
+      width: 95px;
     }
     input[type=range].v-slider::-webkit-slider-runnable-track {
-      height: 6px;
+      height: 4px;
       border-radius: 999px;
-      background: linear-gradient(90deg, #1e293b 0%, #0284c7 50%, #10b981 100%);
+      background: linear-gradient(90deg, #1e293b 0%, #0284c7 60%, #10b981 100%);
     }
     input[type=range].v-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
       background: #ffffff;
-      border: 2.5px solid #38bdf8;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.9);
+      border: 2px solid #38bdf8;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
       margin-top: -5px;
     }
-  </style>
-  <style>
-    html, body { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
-    body { padding: 6px; }
-    #experience { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; gap: 8px; padding: 8px; overflow: hidden; }
-    #stage-wrap { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; overflow: hidden; }
-    #stage-wrap > canvas { display: block; width: 100%; height: 100%; }
-    #hud-overlay, #hotspots-layer { position: absolute; inset: 0; }
-    #hud-overlay { pointer-events: none; }
-    #hotspots-layer { pointer-events: none; overflow: hidden; }
-    #stage-mode-card { position: absolute; z-index: 4; top: 8px; left: 8px; width: min(210px, calc(100% - 132px)); }
-    #stage-telemetry { position: absolute; z-index: 4; top: 8px; right: 8px; max-width: 115px; }
-    #stage-pod-controls { position: absolute; z-index: 4; bottom: 8px; left: 8px; max-width: calc(100% - 16px); flex-wrap: wrap; }
-    #stage-actions { position: absolute; z-index: 4; right: 8px; bottom: 8px; }
-    @media (max-width: 480px) {
-      body { padding: 4px; }
-      #experience { gap: 6px; padding: 6px; }
-      #stage-mode-card { top: 6px; left: 6px; padding: 6px; }
-      #stage-telemetry { top: 6px; right: 6px; padding: 6px; }
-      #stage-mode-card #mode-desc { display: none; }
-      #stage-pod-controls { right: 8px; bottom: 42px; }
-      #stage-actions { right: 8px; bottom: 8px; }
+
+    @media (min-width: 600px) {
+      .glass-pill { font-size: 12px; padding: 6px 14px; }
+      #stage-peel-pill input[type=range].v-slider { width: 135px; }
+      .hotspot-btn { font-size: 12px; padding: 5px 12px; }
     }
   </style>
 </head>
-<body class="bg-transparent text-[var(--foreground)] antialiased p-1 sm:p-2">
+<body>
+  <div id="stage-container">
+    <canvas id="mini-gl"></canvas>
+    <canvas id="hud-overlay"></canvas>
+    <div id="hotspots-layer"></div>
 
-  <div id="experience" class="bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl p-3.5 shadow-2xl overflow-hidden flex flex-col gap-2.5">
-    
-    <!-- Top Bar: Brand + Guided Onboarding Wizard Steps -->
-    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[var(--border)]">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-slate-900 border border-cyan-500/40 flex items-center justify-center p-1.5 relative shadow-inner">
-          <svg class="w-full h-full text-cyan-400" viewBox="0 0 100 100" fill="none">
-            <path d="M50 82 C20 60 12 36 25 22 C35 12 45 20 50 30 C55 20 65 12 75 22 C88 36 80 60 50 82 Z" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18 48 L38 48 L44 32 L53 64 L60 42 L66 48 L82 48" stroke="#38bdf8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <div class="flex items-center gap-1.5">
-            <h2 class="text-sm font-bold text-[var(--foreground)] tracking-tight">Utano Interactive 3D Hardware Experience</h2>
-            <span id="status-badge" class="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-semibold">POD DOCKED • LIVE</span>
-          </div>
-          <p class="text-xs text-[var(--muted-foreground)]">Tap the 3D hotspots directly on the band, snap the pod in/out, or peel open the internal PCB layers</p>
-        </div>
-      </div>
-
-      <!-- Interactive Guided Experience Controls -->
-      <div class="flex items-center gap-1.5">
-        <button id="btn-tour" onclick="startGuidedTour()" class="px-2.5 py-1 rounded-lg bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-xs font-semibold text-cyan-300 transition-all flex items-center gap-1.5 shadow">
-          <span>▶</span>
-          <span id="tour-txt">Guided Setup Tour</span>
-        </button>
-        <button id="btn-bg" onclick="toggleBg()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-medium text-white transition-all">
-          ☀️ Studio
-        </button>
-      </div>
+    <!-- Top-Left Compact Mode Badge -->
+    <div id="stage-mode-pill" class="glass-pill">
+      <span id="mode-icon" style="color: #67e8f9;">🔍</span>
+      <span id="mode-title" style="color: #67e8f9;">What's Inside Pod</span>
     </div>
 
-    <!-- Main 3D Interactive Stage -->
-    <div id="stage-wrap" class="relative w-full h-[390px] rounded-xl border border-slate-800 overflow-hidden cursor-grab active:cursor-grabbing flex items-center justify-center select-none">
-      <canvas id="mini-gl" class="w-full h-full block"></canvas>
-      <canvas id="hud-overlay" class="w-full h-full block absolute inset-0 pointer-events-none"></canvas>
-
-      <!-- Dynamic 3D Anchor Hotspots Container (Clickable directly in 3D space!) -->
-      <div id="hotspots-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
-
-      <!-- Top-Left Interactive Step / Context Card -->
-      <div id="stage-mode-card" class="absolute top-2 left-2 bg-slate-900/92 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 max-w-[210px] sm:max-w-[245px] shadow-xl pointer-events-auto">
-        <div class="flex items-center justify-between gap-1.5">
-          <div id="mode-title" class="text-[11px] sm:text-xs font-bold text-cyan-300 flex items-center gap-1 truncate">
-            <span>🔍</span> <span>What's Inside Pod</span>
-          </div>
-          <span id="step-counter" class="text-[9px] font-mono px-1 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 shrink-0">STEP 4/4</span>
-        </div>
-        <div id="mode-desc" class="text-[10px] sm:text-[11px] text-slate-300 leading-tight mt-1 line-clamp-2">
-          Tap any floating 3D board to isolate it and inspect hardware.
-        </div>
-        <!-- Context-sensitive Interactive Action Button inside the HUD card -->
-        <div class="mt-1.5 pt-1.5 border-t border-slate-800 flex items-center justify-between gap-1">
-          <button id="context-action-btn" onclick="triggerContextSim()" class="w-full py-1 px-2 rounded-lg bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white font-semibold text-[10px] sm:text-[11px] flex items-center justify-center gap-1 shadow transition-all">
-            <span id="context-action-icon">⚡</span>
-            <span id="context-action-lbl">Run Hardware Diagnostic</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Top-Right Live Biometric & Connectivity Telemetry HUD -->
-      <div id="stage-telemetry" class="absolute top-2 right-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-2.5 py-1.5 flex flex-col gap-0.5 pointer-events-none shadow-lg text-[10px]">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-slate-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> HR</span>
-          <span id="hud-hr" class="font-mono font-bold text-emerald-400">72 BPM</span>
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-slate-400">SpO₂/Temp</span>
-          <span id="hud-spo2" class="font-mono font-bold text-cyan-300">98% • 36.6°C</span>
-        </div>
-        <div class="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-800/80 text-[9px]">
-          <span class="text-slate-400">Link</span>
-          <span id="hud-link" class="font-mono text-amber-300">LTE+Wi-Fi</span>
-        </div>
-      </div>
-
-      <!-- Bottom-Left Tactile Explode & Peel Scrubber -->
-      <div id="stage-pod-controls" class="absolute bottom-2.5 left-2.5 bg-slate-900/90 backdrop-blur-md border border-slate-700/90 text-slate-200 text-xs px-3 py-1.5 rounded-xl flex items-center gap-2.5 shadow-lg">
-        <button onclick="toggleDock()" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-semibold text-cyan-300 transition-all" id="quick-dock-btn">
-          ⇄ Pop Pod Out
-        </button>
-        <div class="h-3.5 w-[1px] bg-slate-700"></div>
-        <div class="flex items-center gap-1.5">
-          <span class="text-cyan-400 font-semibold text-[11px]">Peel Pod:</span>
-          <input id="exp-slider" type="range" min="0" max="100" value="100" class="v-slider w-20 sm:w-24" oninput="onSliderExplode(this.value)">
-          <span id="exp-val" class="font-mono text-[11px] text-cyan-300 w-7">100%</span>
-        </div>
-      </div>
-
-      <!-- Bottom-Right Interactive Hint / Layer Reset -->
-      <div id="stage-actions" class="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-        <button id="btn-reset-layer" onclick="selectLayer(-1)" class="hidden bg-amber-950/90 backdrop-blur-md border border-amber-500/60 hover:border-amber-400 text-[11px] font-semibold text-amber-300 px-2.5 py-1.5 rounded-xl transition-all shadow-lg">
-          ↺ Show All 5 Layers
-        </button>
-        <button onclick="toggleSpin()" class="bg-slate-900/90 backdrop-blur-md border border-slate-700 hover:border-slate-500 text-[11px] font-medium text-slate-200 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg">
-          <span id="sp-dot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-          <span id="sp-txt">Orbit: Manual</span>
-        </button>
-      </div>
+    <!-- Top-Right Compact Live Link Badge -->
+    <div id="stage-status-pill" class="glass-pill">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; display: inline-block;"></span>
+      <span id="hud-status-txt" style="color: #34d399;">Connected</span>
     </div>
 
-    <!-- Bottom Interactive Experience Bar (4 Clean Core Presets) -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5 text-xs">
-      <button id="v-docked" onclick="setPreset('docked')" class="cam-pill px-2.5 py-2 rounded-xl border border-slate-700 text-slate-300 flex items-center justify-center gap-1.5 font-medium">
-        <span>💪</span> <span>1. Worn on Arm</span>
-      </button>
-      <button id="v-split" onclick="setPreset('split')" class="cam-pill px-2.5 py-2 rounded-xl border border-slate-700 text-slate-300 flex items-center justify-center gap-1.5 font-medium">
-        <span>🔄</span> <span>2. Removable Pod</span>
-      </button>
-      <button id="v-sensors" onclick="setPreset('sensors')" class="cam-pill px-2.5 py-2 rounded-xl border border-slate-700 text-slate-300 flex items-center justify-center gap-1.5 font-medium">
-        <span>💚</span> <span>3. Skin Sensors</span>
-      </button>
-      <button id="v-inside" onclick="setPreset('inside')" class="cam-pill active px-2.5 py-2 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 font-medium">
-        <span>🔍</span> <span>4. Inside the Pod</span>
-      </button>
+    <!-- Bottom Center Explode Scrubber (Shown in Mode 4) -->
+    <div id="stage-peel-pill">
+      <span style="color: #67e8f9; font-weight: 600; font-size: 11px;">Peel:</span>
+      <input id="exp-slider" type="range" min="0" max="100" value="100" class="v-slider" oninput="onSliderExplode(this.value)">
+      <span id="exp-val" style="font-family: monospace; font-size: 11px; color: #67e8f9; width: 34px;">100%</span>
     </div>
 
+    <!-- Bottom Right Action (Reset Layer Isolation) -->
+    <div id="stage-actions">
+      <button id="btn-reset-layer" onclick="selectLayer(-1)" style="display: none; background: rgba(69, 26, 3, 0.88); border: 1px solid rgba(245, 158, 11, 0.6); color: #fcd34d; font-size: 11px; font-weight: 600; padding: 5px 11px; border-radius: 9999px; backdrop-filter: blur(12px); box-shadow: 0 4px 12px rgba(0,0,0,0.4); cursor: pointer;">
+        ↺ All 5 Layers
+      </button>
+    </div>
   </div>
 
   <script>
@@ -271,22 +215,32 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 
     let width = 0, height = 0, dpr = 1;
     function resize() {
-      if (!canvas || !canvas.parentElement) return;
-      const r = canvas.parentElement.getBoundingClientRect();
-      width = Math.max(1, Math.floor(r.width));
-      height = Math.max(1, Math.floor(r.height));
+      if (!canvas) return;
+      const r = canvas.parentElement ? canvas.parentElement.getBoundingClientRect() : document.body.getBoundingClientRect();
+      width = Math.max(1, Math.floor(r.width || window.innerWidth));
+      height = Math.max(1, Math.floor(r.height || window.innerHeight));
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      hudCanvas.width = width * dpr;
-      hudCanvas.height = height * dpr;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      hudCanvas.width = canvas.width;
+      hudCanvas.height = canvas.height;
       if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
     }
     window.addEventListener('resize', resize);
-    if ('ResizeObserver' in window) {
+    if ('ResizeObserver' in window && canvas.parentElement) {
       new ResizeObserver(resize).observe(canvas.parentElement);
     }
     resize();
+
+    function notifyFlutter(action, payload) {
+      try {
+        if (window.FlutterBridge && window.FlutterBridge.postMessage) {
+          window.FlutterBridge.postMessage(JSON.stringify(Object.assign({ action: action }, payload || {})));
+        }
+      } catch (e) {
+        console.log('Bridge err:', e);
+      }
+    }
 
     // =========================================================================
     // UX STATE & INTERACTIVE SIMULATIONS
@@ -404,11 +358,40 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       else setPreset('docked');
     });
 
+    let initialPinchDist = null;
+    let initialPinchZoom = 1.0;
+
     canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         isDragging = true; dragDist = 0; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
         stopGuidedTour();
         autoSpin = false; updateSpinUI();
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        initialPinchDist = Math.hypot(dx, dy);
+        initialPinchZoom = targetZoom;
+      }
+    }, { passive: true });
+    window.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) initialPinchDist = null;
+      if (e.touches.length === 0) isDragging = false;
+    });
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && isDragging) {
+        const dx = e.touches[0].clientX - lastX, dy = e.touches[0].clientY - lastY;
+        dragDist += Math.hypot(dx, dy);
+        targetRotY += dx * 0.009;
+        targetRotX += dy * 0.009;
+        targetRotX = Math.max(-1.45, Math.min(1.45, targetRotX));
+        lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+      } else if (e.touches.length === 2 && initialPinchDist) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDist = Math.hypot(dx, dy);
+        const factor = currentDist / initialPinchDist;
+        targetZoom = Math.max(0.65, Math.min(2.5, initialPinchZoom * factor));
       }
     }, { passive: true });
     window.addEventListener('touchend', () => { isDragging = false; });
@@ -433,15 +416,19 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       updateSpinUI();
     }
     function updateSpinUI() {
-      document.getElementById('sp-txt').innerText = autoSpin ? 'Orbit: Auto' : 'Orbit: Manual';
-      document.getElementById('sp-dot').className = autoSpin
-        ? 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse'
-        : 'w-1.5 h-1.5 rounded-full bg-slate-500';
+      const spTxt = document.getElementById('sp-txt');
+      if (spTxt) spTxt.innerText = autoSpin ? 'Orbit: Auto' : 'Orbit: Manual';
+      const spDot = document.getElementById('sp-dot');
+      if (spDot) {
+        spDot.className = autoSpin
+          ? 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse'
+          : 'w-1.5 h-1.5 rounded-full bg-slate-500';
+      }
     }
 
     function toggleBg() {
       studioWhite = !studioWhite;
-      document.getElementById('btn-bg').innerText = studioWhite ? '☀️ Studio' : '🛰️ Dark HUD';
+      document.body.style.background = studioWhite ? '#F8FAFC' : '#070B14';
     }
 
     function toggleDock() {
@@ -456,15 +443,15 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 
     function onSliderExplode(val) {
       stopGuidedTour();
-      const v = parseFloat(val) / 100.0;
+      const v = val / 100;
       targetExplode = v;
-      document.getElementById('exp-val').innerText = Math.round(v * 100) + '%';
+      const expVal = document.getElementById('exp-val');
+      if (expVal) expVal.innerText = Math.round(v * 100) + '%';
       if (v > 0.12) {
         currentMode = 'inside';
         targetDetach = 1.0;
         targetSleeveFade = Math.min(1.0, v * 1.15);
         targetSceneOffsetX = -0.48 * v;
-        updateActivePill('inside');
       } else {
         targetSleeveFade = 0.0;
         targetSceneOffsetX = 0.0;
@@ -475,24 +462,23 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       stopGuidedTour();
       selectedLayer = (selectedLayer === idx) ? -1 : idx;
       const resetBtn = document.getElementById('btn-reset-layer');
+      const mTitle = document.getElementById('mode-title');
+      
       if (selectedLayer === -1) {
-        resetBtn.classList.add('hidden');
-        document.getElementById('mode-title').innerHTML = '<span>🔍</span> <span>What\'s Inside the Pod (All 5 Layers)</span>';
-        document.getElementById('mode-desc').innerText = 'Tap any floating 3D board or callout on the right to isolate it and run a live hardware test.';
-        document.getElementById('context-action-lbl').innerText = 'Run Full System Diagnostic Scan';
-        targetRotX = 0.35; targetRotY = -0.42; targetZoom = 1.16;
+        if (resetBtn) resetBtn.style.display = 'none';
+        if (mTitle) mTitle.innerText = "What's Inside Pod";
+        targetRotX = 0.35; targetRotY = -0.42; targetZoom = 1.15;
       } else {
         const L = internalLayersMeta[selectedLayer];
-        resetBtn.classList.remove('hidden');
-        document.getElementById('mode-title').innerHTML = `<span>✨</span> <span>${L.title}</span>`;
-        document.getElementById('mode-desc').innerText = L.detail;
-        document.getElementById('context-action-lbl').innerText = L.actionLbl;
+        if (resetBtn) resetBtn.style.display = 'inline-flex';
+        if (mTitle) mTitle.innerText = L.title;
         targetRotX = L.camRotX;
         targetRotY = L.camRotY;
         targetZoom = L.camZoom;
         simEffectType = L.simType;
         simEffectTimer = 1.0;
       }
+      notifyFlutter('layer', { index: selectedLayer });
     }
 
     function triggerContextSim() {
@@ -553,32 +539,32 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 
     const modeConfigs = {
       docked: {
-        title: '💪 1. Upper-Arm Sleeve (Worn)',
-        step: 'STEP 1/4',
-        desc: 'Pod sits securely inside the breathable sleeve. Tap the 3D pod hotspot to pop it out!',
-        action: '💓 Pulse Live Heart & ECG Telemetry',
-        badge: 'POD DOCKED • ACTIVE'
+        icon: '💪',
+        title: 'Worn on Arm',
+        badge: 'Connected',
+        statusColor: '#34d399',
+        showPeel: false
       },
       split: {
-        title: '🔄 2. Removable Electronics Pod',
-        step: 'STEP 2/4',
-        desc: 'Water-resistant pod detaches smoothly from the sleeve cradle. Tap "Snap Pod In" to lock it magnetically.',
-        action: '🧲 Snap Pod Magnetically Into Sleeve',
-        badge: 'POD DETACHED'
+        icon: '🔄',
+        title: 'Removable Pod',
+        badge: 'Pod Detached',
+        statusColor: '#38bdf8',
+        showPeel: false
       },
       sensors: {
-        title: '💚 3. Skin-Contact Optical Array',
-        step: 'STEP 3/4',
-        desc: 'Dual glowing green PPG optical LEDs sit directly against the skin through the inner cutout for accurate readings.',
-        action: '💚 Boost 525nm Optical Skin Scan',
-        badge: 'SKIN CONTACT LOCKED'
+        icon: '💚',
+        title: 'Skin Sensors',
+        badge: 'Direct Skin Contact',
+        statusColor: '#34d399',
+        showPeel: false
       },
       inside: {
-        title: '🔍 4. What\'s Inside the Pod (5-Layer CAD)',
-        step: 'STEP 4/4',
-        desc: 'Tap any of the 5 floating 3D hardware layers or callout cards on the right to isolate & test that component!',
-        action: '⚡ Pulse All 5 Internal Hardware Layers',
-        badge: 'EXPLODED TEARDOWN'
+        icon: '🔍',
+        title: "What's Inside Pod",
+        badge: '5-Layer CAD',
+        statusColor: '#f59e0b',
+        showPeel: true
       }
     };
 
@@ -586,15 +572,25 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       if (!fromTour) stopGuidedTour();
       currentMode = mode;
       selectedLayer = -1;
-      document.getElementById('btn-reset-layer').classList.add('hidden');
-      updateActivePill(mode);
+      
+      const resetBtn = document.getElementById('btn-reset-layer');
+      if (resetBtn) resetBtn.style.display = 'none';
 
       const cfg = modeConfigs[mode] || modeConfigs.docked;
-      document.getElementById('mode-title').innerText = cfg.title;
-      document.getElementById('step-counter').innerText = cfg.step;
-      document.getElementById('mode-desc').innerText = cfg.desc;
-      document.getElementById('context-action-lbl').innerText = cfg.action;
-      document.getElementById('status-badge').innerText = cfg.badge;
+      const mIcon = document.getElementById('mode-icon');
+      if (mIcon) mIcon.innerText = cfg.icon;
+      const mTitle = document.getElementById('mode-title');
+      if (mTitle) mTitle.innerText = cfg.title;
+      const sTxt = document.getElementById('hud-status-txt');
+      if (sTxt) {
+        sTxt.innerText = cfg.badge;
+        sTxt.style.color = cfg.statusColor;
+      }
+      
+      const peelPill = document.getElementById('stage-peel-pill');
+      if (peelPill) {
+        peelPill.style.display = cfg.showPeel ? 'inline-flex' : 'none';
+      }
 
       washSplash = false;
       snapShockwave = 1.0;
@@ -604,29 +600,29 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
         targetDetach = 0.0; targetExplode = 0.0; targetPodFlip = 0.0; targetSleeveFade = 0.0;
         targetRotX = 0.26; targetRotY = -0.22; targetZoom = 1.14;
         targetSceneOffsetX = 0.0; targetSceneOffsetY = 0.0;
-        document.getElementById('quick-dock-btn').innerText = '⇄ Pop Pod Out';
       } else if (mode === 'split') {
         autoSpin = false; updateSpinUI();
         targetDetach = 1.0; targetExplode = 0.0; targetPodFlip = 0.0; targetSleeveFade = 0.0;
-        targetRotX = 0.28; targetRotY = -0.25; targetZoom = 0.96;
+        targetRotX = 0.28; targetRotY = -0.25; targetZoom = 1.0;
         targetSceneOffsetX = 0.0; targetSceneOffsetY = 0.0;
-        document.getElementById('quick-dock-btn').innerText = '⇄ Snap Pod In';
       } else if (mode === 'sensors') {
         autoSpin = false; updateSpinUI();
         targetDetach = 1.0; targetExplode = 0.0; targetPodFlip = 1.0; targetSleeveFade = 0.0;
-        targetRotX = -0.18; targetRotY = 0.28; targetZoom = 1.38;
-        targetSceneOffsetX = -1.22; targetSceneOffsetY = 0.0;
-        document.getElementById('quick-dock-btn').innerText = '⇄ Snap Pod In';
+        targetRotX = -0.18; targetRotY = 0.28; targetZoom = 1.30;
+        targetSceneOffsetX = -1.15; targetSceneOffsetY = 0.0;
       } else if (mode === 'inside') {
         autoSpin = false; updateSpinUI();
         targetDetach = 1.0; targetExplode = 1.0; targetPodFlip = 0.0; targetSleeveFade = 1.0;
-        targetRotX = 0.35; targetRotY = -0.42; targetZoom = 1.16;
+        targetRotX = 0.35; targetRotY = -0.42; targetZoom = 1.15;
         targetSceneOffsetX = -0.48; targetSceneOffsetY = -0.04;
-        document.getElementById('quick-dock-btn').innerText = '⇄ Assemble & Dock';
       }
 
-      document.getElementById('exp-slider').value = Math.round(targetExplode * 100);
-      document.getElementById('exp-val').innerText = Math.round(targetExplode * 100) + '%';
+      const expSlider = document.getElementById('exp-slider');
+      if (expSlider) expSlider.value = Math.round(targetExplode * 100);
+      const expVal = document.getElementById('exp-val');
+      if (expVal) expVal.innerText = Math.round(targetExplode * 100) + '%';
+      
+      notifyFlutter('preset', { mode: mode });
     }
 
     // =========================================================================
@@ -1296,12 +1292,24 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
       gl.enable(gl.DEPTH_TEST);
       gl.useProgram(prog);
 
-      mat4Persp(pMat, (38 * Math.PI) / 180, width / height, 0.1, 100.0);
-      gl.uniformMatrix4fv(uProjLoc, false, pMat);
-
       const aspect = width / height;
-      const fitZoom = Math.min(1, Math.max(0.7, aspect / 1.6));
-      const eye = [0, 0.2, 7.2 / (zoom * fitZoom)];
+      const fovYDeg = 36;
+      const fovYRad = (fovYDeg * Math.PI) / 180;
+      const tanHalfY = Math.tan(fovYRad / 2); // ~0.3249
+      
+      const boundY = 2.25;
+      const boundX = 2.65;
+      
+      const distY = boundY / tanHalfY;
+      const distX = boundX / (tanHalfY * Math.max(0.40, aspect));
+      
+      const fitDist = Math.max(distY, distX) * 1.14;
+      const eyeDist = fitDist / zoom;
+      
+      mat4Persp(pMat, fovYRad, aspect, 0.1, 100.0);
+      gl.uniformMatrix4fv(uProjLoc, false, pMat);
+      
+      const eye = [0, 0.14, eyeDist];
       mat4Look(vMat, eye, [0, 0, 0], [0, 1, 0]);
       gl.uniformMatrix4fv(uViewLoc, false, vMat);
       gl.uniform3fv(uCamPosLoc, eye);
@@ -1355,36 +1363,29 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
         if (detach < 0.5) {
           activeHotspots.push({
             id: 'pop-pod',
-            label: 'Pop Pod Out',
+            label: '⇄ Pop Pod',
             pt: podPt,
-            cls: 'bg-cyan-950/90 text-cyan-300 border-cyan-400/70',
+            cls: 'bg-cyan-950/85 text-cyan-300 border-cyan-400/70',
             onClick: () => setPreset('split')
-          });
-          activeHotspots.push({
-            id: 'peel-inside',
-            label: '🔍 What\'s Inside Pod',
-            pt: podInsidePt,
-            cls: 'bg-emerald-950/90 text-emerald-300 border-emerald-400/70',
-            onClick: () => setPreset('inside')
           });
         } else {
           activeHotspots.push({
             id: 'snap-in',
-            label: '🧲 Snap Into Sleeve',
+            label: '🧲 Snap In',
             pt: cradlePt,
-            cls: 'bg-cyan-950/90 text-cyan-300 border-cyan-400/70',
+            cls: 'bg-cyan-950/85 text-cyan-300 border-cyan-400/70',
             onClick: () => setPreset('docked')
           });
           activeHotspots.push({
             id: 'peel-open',
-            label: '🔍 Open Inside Pod',
+            label: '🔍 Inside Pod',
             pt: podPt,
-            cls: 'bg-emerald-950/90 text-emerald-300 border-emerald-400/70',
+            cls: 'bg-emerald-950/85 text-emerald-300 border-emerald-400/70',
             onClick: () => setPreset('inside')
           });
           activeHotspots.push({
             id: 'flip-sensors',
-            label: podFlip > 0.5 ? 'Flip to Front' : '💚 View Skin Sensors',
+            label: podFlip > 0.5 ? 'Flip to Front' : '💚 Sensors',
             pt: podInsidePt,
             cls: 'bg-slate-900/90 text-emerald-300 border-emerald-500/60',
             onClick: () => setPreset(podFlip > 0.5 ? 'split' : 'sensors')
@@ -1414,8 +1415,13 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 
           const pEdge = projectPoint([0.58, 0.0, 0.0], mMat, vMat, pMat);
           if (pEdge && explode > 0.35) {
-            const targetCssX = Math.min(width - 115, Math.max(pEdge.cssX + 85, width * 0.66));
-            const targetCssY = 74 + idx * 58;
+            const isNarrow = width < 520;
+            const targetCssX = isNarrow
+              ? Math.min(width - 45, Math.max(pEdge.cssX + 42, width * 0.72))
+              : Math.min(width - 110, Math.max(pEdge.cssX + 70, width * 0.65));
+            const targetCssY = isNarrow
+              ? 35 + idx * ((height - 75) / 5)
+              : 50 + idx * 48;
 
             // Draw Leader Line on HUD Canvas
             hudCtx.save();
@@ -1425,27 +1431,28 @@ const String kUtano3dWebGLHtml = r"""<!DOCTYPE html>
 
             hudCtx.fillStyle = L.color;
             hudCtx.beginPath();
-            hudCtx.arc(pEdge.x, pEdge.y, (isSel ? 5.5 : 4) * dpr, 0, Math.PI * 2);
+            hudCtx.arc(pEdge.x, pEdge.y, (isSel ? 5 : 3.5) * dpr, 0, Math.PI * 2);
             hudCtx.fill();
 
             hudCtx.strokeStyle = isSel ? L.color : (studioWhite ? 'rgba(15, 23, 42, 0.45)' : 'rgba(148, 163, 184, 0.55)');
-            hudCtx.lineWidth = (isSel ? 2.2 : 1.5) * dpr;
+            hudCtx.lineWidth = (isSel ? 2.0 : 1.2) * dpr;
             hudCtx.beginPath();
             hudCtx.moveTo(pEdge.x, pEdge.y);
-            hudCtx.lineTo((targetCssX - 82) * dpr, targetCssY * dpr);
+            hudCtx.lineTo((targetCssX - (isNarrow ? 38 : 65)) * dpr, targetCssY * dpr);
             hudCtx.stroke();
             hudCtx.restore();
 
+            const shortLabels = ['① Casing', '② GPS', '③ Main PCB', '④ Battery', '⑤ Biosensors'];
             // Create Clickable Interactive 3D Layer Pill!
             activeHotspots.push({
               id: 'layer-' + idx,
-              label: `${idx + 1}. ${L.title}`,
+              label: isNarrow ? shortLabels[idx] : `${idx + 1}. ${L.title}`,
               pt: { cssX: targetCssX, cssY: targetCssY },
               cls: isSel
                 ? 'bg-sky-600 text-white border-cyan-300 ring-2 ring-cyan-400/50'
                 : (isDim
                     ? 'bg-slate-900/60 text-slate-400 border-slate-700/50'
-                    : 'bg-slate-900/92 text-white border-slate-600 hover:border-cyan-400'),
+                    : 'bg-slate-900/90 text-white border-slate-600 hover:border-cyan-400'),
               onClick: () => selectLayer(idx)
             });
           }
